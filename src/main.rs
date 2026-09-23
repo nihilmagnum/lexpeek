@@ -3,52 +3,43 @@ mod domain;
 mod infrastructure;
 mod ui;
 
-use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use directories::{BaseDirs, ProjectDirs};
 
-use crate::application::dictionaries::DictionaryImport;
 use crate::application::languages::LanguagesService;
-use crate::application::reading::ScreenReading;
-use crate::domain::lookup::Lookup;
-use crate::infrastructure::autostart::Autostart;
+use crate::application::reading::TextReading;
+use crate::application::selection::SelectionTranslation;
+use crate::application::translators::{Translator, Translators};
+use crate::infrastructure::autostart::DesktopEntryAutostart;
 use crate::infrastructure::google::GoogleTranslator;
+use crate::infrastructure::portal::PortalRegistration;
+use crate::infrastructure::remote_keyboard::RemoteKeyboard;
+use crate::infrastructure::screenshot::PortalScreenCapture;
 use crate::infrastructure::settings_file::SettingsFile;
-use crate::infrastructure::sqlite_library::SqliteLibrary;
-use crate::infrastructure::stardict::StarDictReader;
+use crate::infrastructure::shortcut::PortalShortcuts;
 use crate::infrastructure::tesseract::{TesseractModels, TesseractRecognizer};
-use crate::ui::app::{App, Services};
+use crate::infrastructure::wl_clipboard::WlClipboard;
+use crate::infrastructure::yandex::YandexTranslator;
+use crate::ui::app::{App, Features};
 
-/// Перевод текста с экрана: выделите область, и lexpeek покажет перевод и статьи из словарей.
+/// Перевод текста с экрана: выделите область или текст, и lexpeek покажет перевод.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
     /// Не открывать кадр, если lexpeek уже запущен (для автозапуска)
     #[arg(long)]
     background: bool,
-    #[command(subcommand)]
-    command: Option<Command>,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Импортировать словарь StarDict по пути к .ifo
-    Import { ifo: PathBuf },
 }
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let result = ProjectDirs::from("", "", "lexpeek").context("home directory is unknown").and_then(|directories| {
-        let library = Arc::new(SqliteLibrary::open(&directories.data_dir().join("library.sqlite"))?);
-        match cli.command {
-            Some(Command::Import { ifo }) => import(library, &ifo),
-            None => Ok(App::run(services(&directories, library)?, cli.background)),
-        }
-    });
+    let result = ProjectDirs::from("", "", "lexpeek")
+        .context("home directory is unknown")
+        .and_then(|directories| Ok(App::run(features(&directories)?, cli.background)));
     match result {
         Ok(code) => code.into(),
         Err(error) => {
@@ -58,27 +49,38 @@ fn main() -> ExitCode {
     }
 }
 
-fn services(directories: &ProjectDirs, library: Arc<SqliteLibrary>) -> Result<Services> {
+fn features(directories: &ProjectDirs) -> Result<Features> {
+    if let Err(error) = PortalRegistration::register(App::ID) {
+        eprintln!("lexpeek: cannot register in portals: {error:#}");
+    }
     let settings = Arc::new(SettingsFile::new(directories.config_dir().join("settings.json")));
     let models = TesseractModels::new(directories.data_dir().join("tessdata"));
     let languages = Arc::new(LanguagesService::new(settings.clone(), Arc::new(models.clone())));
-    let reading = ScreenReading::new(
-        settings,
-        Arc::new(TesseractRecognizer::new(models)),
-        Arc::new(GoogleTranslator::new()),
-        Lookup::new(library),
+    let available: Vec<Arc<dyn Translator>> =
+        vec![Arc::new(GoogleTranslator::new()), Arc::new(YandexTranslator::new())];
+    let translators = Arc::new(Translators::new(available, settings.clone()));
+    let reading =
+        Arc::new(TextReading::new(settings, Arc::new(TesseractRecognizer::new(models)), Arc::clone(&translators)));
+    let clipboard = Arc::new(WlClipboard);
+    let selection = SelectionTranslation::new(
+        clipboard.clone(),
+        Arc::clone(&reading),
+        clipboard,
+        Arc::new(RemoteKeyboard::new(directories.data_dir().join("remote-desktop-token"))),
     );
-    Ok(Services { reading: Arc::new(reading), languages, autostart: autostart()? })
+    Ok(Features {
+        reading,
+        languages,
+        translators,
+        selection: Arc::new(selection),
+        screen: Arc::new(PortalScreenCapture),
+        shortcuts: Arc::new(PortalShortcuts::new(App::ID)),
+        autostart: Arc::new(autostart()?),
+    })
 }
 
-fn import(library: Arc<SqliteLibrary>, ifo: &Path) -> Result<gtk::glib::ExitCode> {
-    let imported = DictionaryImport::new(Arc::new(StarDictReader), library).import(ifo)?;
-    println!("Imported {} articles from «{}»", imported.articles, imported.name);
-    Ok(gtk::glib::ExitCode::SUCCESS)
-}
-
-fn autostart() -> Result<Autostart> {
+fn autostart() -> Result<DesktopEntryAutostart> {
     let directories = BaseDirs::new().context("home directory is unknown")?;
     let binary = std::env::current_exe().context("cannot locate lexpeek binary")?;
-    Ok(Autostart::new(directories.config_dir(), App::ID, binary))
+    Ok(DesktopEntryAutostart::new(directories.config_dir(), App::ID, binary))
 }

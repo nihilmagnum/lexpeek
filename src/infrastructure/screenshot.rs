@@ -1,14 +1,18 @@
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 use ashpd::desktop::screenshot::Screenshot;
-use gtk::gio;
 use gtk::prelude::FileExt;
+use gtk::{gio, glib};
 use image::RgbaImage;
 
-/// Снимок всего экрана через xdg-desktop-portal.
-pub struct ScreenCapture;
+use crate::application::desktop::ScreenCapture;
 
-impl ScreenCapture {
-    pub async fn take() -> Result<RgbaImage> {
+/// Снимок экрана через xdg-desktop-portal.
+pub struct PortalScreenCapture;
+
+impl PortalScreenCapture {
+    async fn saved_screenshot() -> Result<PathBuf> {
         let screenshot = Screenshot::request()
             .interactive(false)
             .modal(false)
@@ -17,12 +21,16 @@ impl ScreenCapture {
             .context("screenshot portal is unavailable")?
             .response()
             .context("screenshot was not taken")?;
-        let path = gio::File::for_uri(screenshot.uri().as_str())
-            .path()
-            .context("screenshot is not a local file")?;
-        let image = image::open(&path).with_context(|| format!("cannot read {}", path.display()))?;
+        gio::File::for_uri(screenshot.uri().as_str()).path().context("screenshot is not a local file")
+    }
+}
+
+impl ScreenCapture for PortalScreenCapture {
+    fn capture(&self) -> Result<RgbaImage> {
+        let path = glib::MainContext::new().block_on(Self::saved_screenshot())?;
+        let image = image::open(&path);
         // Портал сохраняет снимок в «Изображения», а нужен он только на время выделения.
         std::fs::remove_file(&path).with_context(|| format!("cannot remove {}", path.display()))?;
-        Ok(image.into_rgba8())
+        Ok(image.with_context(|| format!("cannot read {}", path.display()))?.into_rgba8())
     }
 }

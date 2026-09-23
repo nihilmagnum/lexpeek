@@ -1,8 +1,9 @@
-/// Текст для перевода: строки, на которые его разбил экран, собраны обратно в абзацы.
+/// Текст для перевода.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SourceText(String);
 
 impl SourceText {
+    /// Строки, на которые текст разбит на экране, собираются обратно в абзацы.
     pub fn from_recognized(recognized: &str) -> Self {
         let unwrapped = recognized.replace("-\n", "");
         let paragraphs: Vec<String> = unwrapped

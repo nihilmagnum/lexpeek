@@ -1,15 +1,31 @@
+use std::rc::Rc;
+use std::sync::Arc;
+
 use gtk::prelude::*;
-use gtk::{gdk, glib};
+use gtk::{gdk, gio, glib};
 
-use crate::infrastructure::shortcut::CaptureShortcut;
+use crate::application::desktop::{GlobalShortcuts, ShortcutSpec};
 
-/// Окно, в котором нажимают новое сочетание для перевода.
+/// Нажатие в окне редактора.
+struct PressedKeys {
+    key: gdk::Key,
+    keycode: u32,
+    state: gdk::ModifierType,
+}
+
+/// Окно, в котором нажимают новое сочетание для действия.
 pub struct ShortcutEditor;
 
 impl ShortcutEditor {
     const LAYOUT_GROUPS: i32 = 4;
 
-    pub fn show(app: &gtk::Application, app_id: &'static str) {
+    /// `on_saved` вызывается, когда GNOME принял новое сочетание.
+    pub fn show(
+        app: &gtk::Application,
+        shortcuts: Arc<dyn GlobalShortcuts>,
+        spec: ShortcutSpec,
+        on_saved: Rc<dyn Fn()>,
+    ) {
         let status = gtk::Label::builder().label("Esc — отмена").css_classes(["dim-label"]).wrap(true).build();
         let content = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -19,7 +35,8 @@ impl ShortcutEditor {
             .margin_start(32)
             .margin_end(32)
             .build();
-        content.append(&gtk::Label::builder().label("Нажмите новое сочетание клавиш").css_classes(["title-3"]).build());
+        content.append(&gtk::Label::builder().label(spec.description).css_classes(["title-3"]).build());
+        content.append(&gtk::Label::builder().label("Нажмите новое сочетание клавиш").build());
         content.append(&status);
 
         let window = gtk::ApplicationWindow::builder()
@@ -39,7 +56,9 @@ impl ShortcutEditor {
             #[upgrade_or]
             glib::Propagation::Proceed,
             move |controller, key, keycode, state| {
-                Self::key_pressed(controller, &window, &status, app_id, key, keycode, state)
+                let pressed = PressedKeys { key, keycode, state };
+                let shortcuts = Arc::clone(&shortcuts);
+                Self::key_pressed(controller, &window, &status, shortcuts, spec, Rc::clone(&on_saved), pressed)
             }
         ));
         window.add_controller(keys);
@@ -50,11 +69,12 @@ impl ShortcutEditor {
         controller: &gtk::EventControllerKey,
         window: &gtk::ApplicationWindow,
         status: &gtk::Label,
-        app_id: &'static str,
-        key: gdk::Key,
-        keycode: u32,
-        state: gdk::ModifierType,
+        shortcuts: Arc<dyn GlobalShortcuts>,
+        spec: ShortcutSpec,
+        on_saved: Rc<dyn Fn()>,
+        pressed: PressedKeys,
     ) -> glib::Propagation {
+        let PressedKeys { key, keycode, state } = pressed;
         let modifiers = state & gtk::accelerator_get_default_mod_mask();
         if key == gdk::Key::Escape && modifiers.is_empty() {
             window.close();
@@ -79,9 +99,13 @@ impl ShortcutEditor {
             #[weak]
             status,
             async move {
-                match CaptureShortcut::rebind(app_id, &accelerator).await {
-                    Ok(()) => window.close(),
-                    Err(error) => status.set_label(&format!("Не удалось сохранить: {error:#}")),
+                match gio::spawn_blocking(move || shortcuts.assign(&spec, &accelerator)).await {
+                    Ok(Ok(())) => {
+                        window.close();
+                        on_saved();
+                    }
+                    Ok(Err(error)) => status.set_label(&format!("Не удалось сохранить: {error:#}")),
+                    Err(_) => status.set_label("Сохранение аварийно завершилось"),
                 }
             }
         ));

@@ -1,9 +1,18 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{Result, bail, ensure};
+use anyhow::Result;
+use thiserror::Error;
 
-use crate::domain::language::{Language, LanguageCatalog, LanguagePair, LanguageSetup};
+use crate::domain::language::{Language, LanguageCatalog, LanguageCode, LanguageError, LanguagePair, LanguageSetup};
+
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum LanguagesError {
+    #[error("OCR model for {0} is not installed")]
+    ModelMissing(LanguageCode),
+    #[error("language {0} has no model to download")]
+    NotDownloadable(LanguageCode),
+}
 
 pub trait LanguageSetupRepository: Send + Sync {
     fn load(&self) -> Result<LanguageSetup>;
@@ -33,21 +42,17 @@ pub struct LanguagesOverview {
 
 /// Выбор пары языков и управление моделями распознавания.
 pub struct LanguagesService {
-    setups: Arc<dyn LanguageSetupRepository>,
+    language_setups: Arc<dyn LanguageSetupRepository>,
     models: Arc<dyn OcrModelStore>,
 }
 
 impl LanguagesService {
-    pub fn new(setups: Arc<dyn LanguageSetupRepository>, models: Arc<dyn OcrModelStore>) -> Self {
-        Self { setups, models }
-    }
-
-    pub fn pair(&self) -> Result<LanguagePair> {
-        Ok(self.setups.load()?.pair().clone())
+    pub fn new(language_setups: Arc<dyn LanguageSetupRepository>, models: Arc<dyn OcrModelStore>) -> Self {
+        Self { language_setups, models }
     }
 
     pub fn overview(&self) -> Result<LanguagesOverview> {
-        let setup = self.setups.load()?;
+        let setup = self.language_setups.load()?;
         let languages = setup
             .catalog()
             .languages()
@@ -62,48 +67,52 @@ impl LanguagesService {
     }
 
     /// Для пары годятся только языки, которые умеем распознавать.
-    pub fn choose(&self, native: &str, foreign: &str) -> Result<()> {
-        let mut setup = self.setups.load()?;
+    pub fn choose(&self, native: &LanguageCode, foreign: &LanguageCode) -> Result<()> {
+        let mut setup = self.language_setups.load()?;
         setup.choose(native, foreign)?;
         for language in setup.pair().languages() {
-            ensure!(self.models.is_installed(&language), "OCR model for {} is not installed", language.code);
+            if !self.models.is_installed(&language) {
+                return Err(LanguagesError::ModelMissing(language.code().clone()).into());
+            }
         }
-        self.setups.save(&setup)
+        self.language_setups.save(&setup)
     }
 
     pub fn download(&self, language: &Language) -> Result<()> {
-        ensure!(LanguageCatalog::is_built_in(language), "language {} has no model to download", language.code);
+        if !LanguageCatalog::is_built_in(language) {
+            return Err(LanguagesError::NotDownloadable(language.code().clone()).into());
+        }
         self.models.download(language)
     }
 
     /// Встроенный язык теряет только модель, добавленный пользователем исчезает из каталога.
     pub fn remove(&self, language: &Language) -> Result<()> {
-        let mut setup = self.setups.load()?;
+        let mut setup = self.language_setups.load()?;
         setup.remove(language)?;
         if self.models.is_installed(language) {
             self.models.remove(language)?;
         }
-        self.setups.save(&setup)
+        self.language_setups.save(&setup)
     }
 
     /// Модель для кода встроенного языка становится его моделью, иначе в каталоге появляется новый язык.
-    pub fn add_from_file(&self, file: &Path, code: &str, name: &str) -> Result<()> {
-        let mut setup = self.setups.load()?;
-        if let Some(known) = setup.catalog().by_code(&code.trim().to_lowercase()) {
+    pub fn add_from_file(&self, file: &Path, code: &LanguageCode, name: &str) -> Result<()> {
+        let mut setup = self.language_setups.load()?;
+        if let Some(known) = setup.catalog().by_code(code) {
             if !LanguageCatalog::is_built_in(known) {
-                bail!("language {} is already added", known.code);
+                return Err(LanguageError::AlreadyInCatalog(code.clone()).into());
             }
             return self.models.install_from_file(known, file);
         }
-        let language = Language::custom(code, name)?;
+        let language = Language::custom(code.clone(), name)?;
         setup.add(language.clone())?;
         self.models.install_from_file(&language, file)?;
-        self.setups.save(&setup)
+        self.language_setups.save(&setup)
     }
 
     /// Скачивает недостающие модели пары, например при первом запуске.
     pub fn download_pair_models(&self) -> Result<()> {
-        for language in self.pair()?.languages() {
+        for language in self.language_setups.load()?.pair().languages() {
             if LanguageCatalog::is_built_in(&language) && !self.models.is_installed(&language) {
                 self.models.download(&language)?;
             }
@@ -138,11 +147,11 @@ mod tests {
 
     impl OcrModelStore for InMemoryModels {
         fn is_installed(&self, language: &Language) -> bool {
-            self.0.lock().unwrap().contains(&*language.code)
+            self.0.lock().unwrap().contains(language.code().as_str())
         }
 
         fn download(&self, language: &Language) -> Result<()> {
-            self.0.lock().unwrap().insert(language.code.to_string());
+            self.0.lock().unwrap().insert(language.code().to_string());
             Ok(())
         }
 
@@ -151,9 +160,13 @@ mod tests {
         }
 
         fn remove(&self, language: &Language) -> Result<()> {
-            self.0.lock().unwrap().remove(&*language.code);
+            self.0.lock().unwrap().remove(language.code().as_str());
             Ok(())
         }
+    }
+
+    fn code(code: &str) -> LanguageCode {
+        LanguageCode::parse(code).unwrap()
     }
 
     fn service() -> LanguagesService {
@@ -164,12 +177,13 @@ mod tests {
     fn custom_language_from_file_joins_the_catalog_and_leaves_it_on_removal() {
         let languages = service();
         languages.download_pair_models().unwrap();
-        languages.add_from_file(Path::new("kat.traineddata"), "ka", "Грузинский").unwrap();
-        languages.choose("ru", "ka").unwrap();
-        let georgian = languages.pair().unwrap().foreign;
+        languages.add_from_file(Path::new("kat.traineddata"), &code("ka"), "Грузинский").unwrap();
+        languages.choose(&code("ru"), &code("ka")).unwrap();
+        let georgian = languages.overview().unwrap().pair.foreign().clone();
 
-        assert!(languages.remove(&georgian).is_err());
-        languages.choose("ru", "en").unwrap();
+        let error = languages.remove(&georgian).unwrap_err();
+        assert_eq!(error.downcast_ref(), Some(&LanguageError::ChosenForTranslation(code("ka"))));
+        languages.choose(&code("ru"), &code("en")).unwrap();
         languages.remove(&georgian).unwrap();
         assert!(languages.overview().unwrap().languages.iter().all(|status| status.language != georgian));
     }
@@ -178,6 +192,7 @@ mod tests {
     fn pair_needs_installed_models() {
         let languages = service();
         languages.download_pair_models().unwrap();
-        assert!(languages.choose("ru", "de").is_err());
+        let error = languages.choose(&code("ru"), &code("de")).unwrap_err();
+        assert_eq!(error.downcast_ref(), Some(&LanguagesError::ModelMissing(code("de"))));
     }
 }

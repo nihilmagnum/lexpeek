@@ -1,29 +1,80 @@
 use std::borrow::Cow;
+use std::fmt;
 
-use anyhow::{Context, Result, bail, ensure};
+use thiserror::Error;
 
-/// Язык, опознаётся по коду ISO 639-1.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum LanguageError {
+    #[error("language code {0:?} must be 2 to 8 latin letters")]
+    InvalidCode(String),
+    #[error("language name is empty")]
+    EmptyName,
+    #[error("language {0} is already in the catalog")]
+    AlreadyInCatalog(LanguageCode),
+    #[error("language {0} is not in the catalog")]
+    Unknown(LanguageCode),
+    #[error("languages of a pair must differ")]
+    SameLanguagesInPair,
+    #[error("language {0} is chosen for translation")]
+    ChosenForTranslation(LanguageCode),
+}
+
+/// Код языка ISO 639-1, например `ru`.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct LanguageCode(Cow<'static, str>);
+
+impl LanguageCode {
+    const fn built_in(code: &'static str) -> Self {
+        Self(Cow::Borrowed(code))
+    }
+
+    /// Допускает уточнение варианта языка через дефис, например `zh-tw`.
+    pub fn parse(code: &str) -> Result<Self, LanguageError> {
+        let code = code.trim().to_lowercase();
+        let valid = (2..=8).contains(&code.len()) && code.chars().all(|c| c.is_ascii_lowercase() || c == '-');
+        if !valid {
+            return Err(LanguageError::InvalidCode(code));
+        }
+        Ok(Self(Cow::Owned(code)))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for LanguageCode {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Language {
-    pub code: Cow<'static, str>,
-    pub name: Cow<'static, str>,
+    code: LanguageCode,
+    name: Cow<'static, str>,
 }
 
 impl Language {
     const fn built_in(code: &'static str, name: &'static str) -> Self {
-        Self { code: Cow::Borrowed(code), name: Cow::Borrowed(name) }
+        Self { code: LanguageCode::built_in(code), name: Cow::Borrowed(name) }
     }
 
     /// Язык, добавленный пользователем.
-    pub fn custom(code: &str, name: &str) -> Result<Self> {
-        let code = code.trim().to_lowercase();
+    pub fn custom(code: LanguageCode, name: &str) -> Result<Self, LanguageError> {
         let name = name.trim();
-        ensure!(
-            (2..=8).contains(&code.len()) && code.chars().all(|c| c.is_ascii_lowercase() || c == '-'),
-            "language code must be 2 to 8 latin letters"
-        );
-        ensure!(!name.is_empty(), "language name is empty");
-        Ok(Self { code: Cow::Owned(code), name: Cow::Owned(name.to_owned()) })
+        if name.is_empty() {
+            return Err(LanguageError::EmptyName);
+        }
+        Ok(Self { code, name: Cow::Owned(name.to_owned()) })
+    }
+
+    pub fn code(&self) -> &LanguageCode {
+        &self.code
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -58,16 +109,18 @@ impl LanguageCatalog {
         &self.custom
     }
 
-    pub fn by_code(&self, code: &str) -> Option<&Language> {
-        self.languages().find(|language| language.code == code)
+    pub fn by_code(&self, code: &LanguageCode) -> Option<&Language> {
+        self.languages().find(|language| language.code == *code)
     }
 
     pub fn is_built_in(language: &Language) -> bool {
         BUILT_IN_LANGUAGES.iter().any(|built_in| built_in.code == language.code)
     }
 
-    fn add(&mut self, language: Language) -> Result<()> {
-        ensure!(self.by_code(&language.code).is_none(), "language {} is already in the catalog", language.code);
+    fn add(&mut self, language: Language) -> Result<(), LanguageError> {
+        if self.by_code(&language.code).is_some() {
+            return Err(LanguageError::AlreadyInCatalog(language.code));
+        }
         self.custom.push(language);
         Ok(())
     }
@@ -77,22 +130,32 @@ impl LanguageCatalog {
     }
 }
 
-/// Пара языков пользователя: текст на своём языке переводится на второй, любой другой на свой.
+/// Пара языков пользователя: свой язык и второй.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LanguagePair {
-    pub native: Language,
-    pub foreign: Language,
+    native: Language,
+    foreign: Language,
 }
 
 impl LanguagePair {
-    pub fn new(native: Language, foreign: Language) -> Result<Self> {
-        ensure!(native != foreign, "languages of a pair must differ");
+    pub fn new(native: Language, foreign: Language) -> Result<Self, LanguageError> {
+        if native == foreign {
+            return Err(LanguageError::SameLanguagesInPair);
+        }
         Ok(Self { native, foreign })
     }
 
-    /// Язык перевода для текста на языке `source`.
-    pub fn target_for(&self, source: Option<&str>) -> &Language {
-        if source == Some(&*self.native.code) { &self.foreign } else { &self.native }
+    pub fn native(&self) -> &Language {
+        &self.native
+    }
+
+    pub fn foreign(&self) -> &Language {
+        &self.foreign
+    }
+
+    /// Текст на своём языке переводится на второй, на любом другом на свой.
+    pub fn target_for(&self, source: Option<&LanguageCode>) -> &Language {
+        if source == Some(&self.native.code) { &self.foreign } else { &self.native }
     }
 
     pub fn languages(&self) -> [Language; 2] {
@@ -101,6 +164,10 @@ impl LanguagePair {
 
     pub fn contains(&self, language: &Language) -> bool {
         self.native == *language || self.foreign == *language
+    }
+
+    pub fn contains_code(&self, code: &LanguageCode) -> bool {
+        self.native.code == *code || self.foreign.code == *code
     }
 }
 
@@ -118,18 +185,22 @@ pub struct LanguageSetup {
 }
 
 impl LanguageSetup {
-    /// Восстанавливает сохранённые языки; пара, которой больше нет в каталоге, сбрасывается на пару по умолчанию.
-    pub fn restore(custom: Vec<Language>, native: Option<&str>, foreign: Option<&str>) -> Self {
+    /// Пара, языка которой больше нет в каталоге, сбрасывается на пару по умолчанию.
+    pub fn restore(
+        custom: Vec<Language>,
+        native: Option<LanguageCode>,
+        foreign: Option<LanguageCode>,
+    ) -> Result<Self, LanguageError> {
         let mut catalog = LanguageCatalog::default();
         for language in custom {
-            let _ = catalog.add(language);
+            catalog.add(language)?;
         }
-        let find = |code: Option<&str>| code.and_then(|code| catalog.by_code(code)).cloned();
-        let pair = find(native)
-            .zip(find(foreign))
-            .and_then(|(native, foreign)| LanguagePair::new(native, foreign).ok())
-            .unwrap_or_default();
-        Self { catalog, pair }
+        let find = |code: Option<LanguageCode>| code.and_then(|code| catalog.by_code(&code).cloned());
+        let pair = match (find(native), find(foreign)) {
+            (Some(native), Some(foreign)) => LanguagePair::new(native, foreign).unwrap_or_default(),
+            _ => LanguagePair::default(),
+        };
+        Ok(Self { catalog, pair })
     }
 
     pub fn catalog(&self) -> &LanguageCatalog {
@@ -140,21 +211,21 @@ impl LanguageSetup {
         &self.pair
     }
 
-    pub fn choose(&mut self, native: &str, foreign: &str) -> Result<()> {
-        let native = self.catalog.by_code(native).with_context(|| format!("unknown language {native}"))?;
-        let foreign = self.catalog.by_code(foreign).with_context(|| format!("unknown language {foreign}"))?;
+    pub fn choose(&mut self, native: &LanguageCode, foreign: &LanguageCode) -> Result<(), LanguageError> {
+        let native = self.catalog.by_code(native).ok_or_else(|| LanguageError::Unknown(native.clone()))?;
+        let foreign = self.catalog.by_code(foreign).ok_or_else(|| LanguageError::Unknown(foreign.clone()))?;
         self.pair = LanguagePair::new(native.clone(), foreign.clone())?;
         Ok(())
     }
 
-    pub fn add(&mut self, language: Language) -> Result<()> {
+    pub fn add(&mut self, language: Language) -> Result<(), LanguageError> {
         self.catalog.add(language)
     }
 
     /// Язык из пары удалить нельзя; встроенный остаётся в каталоге.
-    pub fn remove(&mut self, language: &Language) -> Result<()> {
+    pub fn remove(&mut self, language: &Language) -> Result<(), LanguageError> {
         if self.pair.contains(language) {
-            bail!("language {} is chosen for translation", language.code);
+            return Err(LanguageError::ChosenForTranslation(language.code.clone()));
         }
         self.catalog.remove(language);
         Ok(())
@@ -165,29 +236,40 @@ impl LanguageSetup {
 mod tests {
     use super::*;
 
+    fn code(code: &str) -> LanguageCode {
+        LanguageCode::parse(code).unwrap()
+    }
+
     #[test]
     fn translates_native_text_into_foreign_language_and_any_other_into_native() {
         let pair = LanguagePair::default();
-        assert_eq!(pair.target_for(Some("ru")), &pair.foreign);
-        assert_eq!(pair.target_for(Some("de")), &pair.native);
-        assert_eq!(pair.target_for(None), &pair.native);
+        assert_eq!(pair.target_for(Some(&code("ru"))), pair.foreign());
+        assert_eq!(pair.target_for(Some(&code("de"))), pair.native());
+        assert_eq!(pair.target_for(None), pair.native());
     }
 
     #[test]
     fn keeps_languages_of_the_pair() {
         let mut setup = LanguageSetup::default();
-        let georgian = Language::custom("ka", "Грузинский").unwrap();
+        let georgian = Language::custom(code("ka"), "Грузинский").unwrap();
         setup.add(georgian.clone()).unwrap();
-        setup.choose("ru", "ka").unwrap();
+        setup.choose(&code("ru"), &code("ka")).unwrap();
 
-        assert!(setup.remove(&georgian).is_err());
-        assert!(setup.add(georgian).is_err());
-        assert!(setup.choose("ru", "ru").is_err());
+        assert_eq!(setup.remove(&georgian), Err(LanguageError::ChosenForTranslation(code("ka"))));
+        assert_eq!(setup.add(georgian), Err(LanguageError::AlreadyInCatalog(code("ka"))));
+        assert_eq!(setup.choose(&code("ru"), &code("ru")), Err(LanguageError::SameLanguagesInPair));
     }
 
     #[test]
     fn restores_default_pair_when_its_language_is_gone() {
-        let setup = LanguageSetup::restore(Vec::new(), Some("ru"), Some("ka"));
+        let setup = LanguageSetup::restore(Vec::new(), Some(code("ru")), Some(code("ka"))).unwrap();
         assert_eq!(setup.pair(), &LanguagePair::default());
+    }
+
+    #[test]
+    fn rejects_malformed_code() {
+        assert!(LanguageCode::parse("r").is_err());
+        assert!(LanguageCode::parse("ру").is_err());
+        assert_eq!(code(" ZH-tw ").as_str(), "zh-tw");
     }
 }

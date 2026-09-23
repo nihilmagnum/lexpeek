@@ -6,71 +6,38 @@ use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 use image::RgbaImage;
 
-use crate::application::reading::{Reading, ScreenReading};
-use crate::domain::lookup::TermMatch;
-
-#[derive(Clone, Copy, Debug)]
-struct Area {
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-}
-
-impl Area {
-    fn spanning(start_x: f64, start_y: f64, offset_x: f64, offset_y: f64) -> Self {
-        Self {
-            x: start_x.min(start_x + offset_x),
-            y: start_y.min(start_y + offset_y),
-            width: offset_x.abs(),
-            height: offset_y.abs(),
-        }
-    }
-
-    fn bottom(&self) -> f64 {
-        self.y + self.height
-    }
-}
+use crate::application::reading::TextReading;
+use crate::ui::action::Activation;
+use crate::ui::reading_card::{Anchor, ReadingCard};
 
 /// Замороженный кадр экрана, на котором выделяют текст для перевода.
 pub struct Overlay {
     window: gtk::ApplicationWindow,
     picture: gtk::Picture,
     canvas: gtk::DrawingArea,
-    card: gtk::ScrolledWindow,
+    card: ReadingCard,
     screenshot: RgbaImage,
-    reading: Arc<ScreenReading>,
+    reading: Arc<TextReading>,
     /// Снимок монитора, на котором открыт кадр.
     screen: RefCell<Option<RgbaImage>>,
-    selection: RefCell<Option<Area>>,
+    selection: Cell<Option<Anchor>>,
     /// Номер последнего выделения: результат распознавания старого выделения не показывается.
     generation: Cell<u64>,
 }
 
 impl Overlay {
-    const CARD_WIDTH: i32 = 440;
-    const CARD_GAP: i32 = 10;
     const MIN_SELECTION: f64 = 6.0;
 
-    pub fn show(app: &gtk::Application, screenshot: RgbaImage, reading: Arc<ScreenReading>) {
+    pub fn show(app: &gtk::Application, screenshot: RgbaImage, reading: Arc<TextReading>, activation: &Activation) {
         let window = gtk::ApplicationWindow::builder().application(app).decorated(false).build();
         let picture = gtk::Picture::builder().content_fit(gtk::ContentFit::Fill).can_shrink(true).build();
         let canvas = gtk::DrawingArea::builder().hexpand(true).vexpand(true).build();
         canvas.set_cursor_from_name(Some("crosshair"));
-        let card = gtk::ScrolledWindow::builder()
-            .hscrollbar_policy(gtk::PolicyType::Never)
-            .propagate_natural_height(true)
-            .max_content_height(420)
-            .width_request(Self::CARD_WIDTH)
-            .halign(gtk::Align::Start)
-            .valign(gtk::Align::Start)
-            .visible(false)
-            .css_classes(["lexpeek-card"])
-            .build();
+        let card = ReadingCard::new();
 
         let layers = gtk::Overlay::builder().child(&picture).build();
         layers.add_overlay(&canvas);
-        layers.add_overlay(&card);
+        layers.add_overlay(card.widget());
         window.set_child(Some(&layers));
 
         let overlay = Rc::new(Self {
@@ -81,7 +48,7 @@ impl Overlay {
             screenshot,
             reading,
             screen: RefCell::new(None),
-            selection: RefCell::new(None),
+            selection: Cell::new(None),
             generation: Cell::new(0),
         });
 
@@ -95,7 +62,7 @@ impl Overlay {
             overlay,
             #[upgrade_or]
             None,
-            move |layers, widget| overlay.card_position(layers, widget)
+            move |layers, widget| overlay.card.position(layers, widget, overlay.selection.get()?)
         ));
         window.connect_realize(glib::clone!(
             #[weak]
@@ -117,7 +84,7 @@ impl Overlay {
         });
 
         window.fullscreen();
-        window.present();
+        activation.present(&window);
     }
 
     fn connect_input(self: &Rc<Self>) {
@@ -173,14 +140,14 @@ impl Overlay {
     }
 
     fn begin_selection(&self, x: f64, y: f64) {
-        self.card.set_visible(false);
-        self.selection.replace(Some(Area { x, y, width: 0.0, height: 0.0 }));
+        self.card.hide();
+        self.selection.set(Some(Anchor::point(x, y)));
         self.canvas.queue_draw();
     }
 
     fn update_selection(&self, gesture: &gtk::GestureDrag, offset_x: f64, offset_y: f64) {
         if let Some((start_x, start_y)) = gesture.start_point() {
-            self.selection.replace(Some(Area::spanning(start_x, start_y, offset_x, offset_y)));
+            self.selection.set(Some(Anchor::spanning(start_x, start_y, offset_x, offset_y)));
             self.canvas.queue_draw();
         }
     }
@@ -189,12 +156,12 @@ impl Overlay {
         let Some((start_x, start_y)) = gesture.start_point() else {
             return;
         };
-        let area = Area::spanning(start_x, start_y, offset_x, offset_y);
+        let area = Anchor::spanning(start_x, start_y, offset_x, offset_y);
         if area.width < Self::MIN_SELECTION || area.height < Self::MIN_SELECTION {
             self.window.close();
             return;
         }
-        self.selection.replace(Some(area));
+        self.selection.set(Some(area));
         self.canvas.queue_draw();
         let Some(fragment) = self.fragment(area) else {
             return;
@@ -202,25 +169,24 @@ impl Overlay {
 
         let generation = self.generation.get() + 1;
         self.generation.set(generation);
-        self.show_card(&Self::message("Распознаю…"));
+        self.card.show_message("Распознаю…");
         let overlay = Rc::clone(self);
         let reading = Arc::clone(&self.reading);
         glib::spawn_future_local(async move {
-            let reading = gio::spawn_blocking(move || reading.read(&fragment)).await;
+            let result = gio::spawn_blocking(move || reading.read_fragment(&fragment)).await;
             if overlay.generation.get() != generation {
                 return;
             }
-            let content = match reading {
-                Ok(Ok(reading)) => Self::reading_content(&reading),
-                Ok(Err(error)) => Self::message(&format!("Не удалось распознать текст: {error:#}")),
-                Err(_) => Self::message("Распознавание аварийно завершилось"),
-            };
-            overlay.show_card(&content);
+            match result {
+                Ok(Ok(reading)) => overlay.card.show_reading(&reading),
+                Ok(Err(error)) => overlay.card.show_message(&format!("Не удалось распознать текст: {error:#}")),
+                Err(_) => overlay.card.show_message("Распознавание аварийно завершилось"),
+            }
         });
     }
 
     /// Участок снимка под выделением в пикселях снимка.
-    fn fragment(&self, area: Area) -> Option<RgbaImage> {
+    fn fragment(&self, area: Anchor) -> Option<RgbaImage> {
         let screen = self.screen.borrow();
         let screen = screen.as_ref()?;
         let scale = f64::from(screen.width()) / f64::from(self.canvas.width().max(1));
@@ -231,89 +197,10 @@ impl Overlay {
         (width > 0 && height > 0).then(|| image::imageops::crop_imm(screen, x, y, width, height).to_image())
     }
 
-    fn reading_content(reading: &Reading) -> gtk::Box {
-        if reading.text.is_empty() {
-            return Self::message("Текст не распознан");
-        }
-        let content = gtk::Box::new(gtk::Orientation::Vertical, 10);
-        content.append(&Self::label(&reading.text, &["lexpeek-recognized"]));
-        match &reading.translation {
-            Ok(translation) => content.append(&Self::label(translation, &["lexpeek-translation"])),
-            Err(error) => content.append(&Self::label(&format!("Не удалось перевести: {error:#}"), &[])),
-        }
-        match &reading.terms {
-            Ok(terms) if terms.is_empty() => {}
-            Ok(terms) => {
-                content.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
-                for term in terms {
-                    content.append(&Self::term_view(term));
-                }
-            }
-            Err(error) => content.append(&Self::label(&format!("Ошибка словаря: {error:#}"), &[])),
-        }
-        content
-    }
-
-    fn term_view(term: &TermMatch) -> gtk::Box {
-        let view = gtk::Box::new(gtk::Orientation::Vertical, 4);
-        view.append(&Self::label(&term.term, &["lexpeek-term"]));
-        for article in &term.articles {
-            view.append(&Self::label(&article.body, &[]));
-            view.append(&Self::label(&article.dictionary, &["lexpeek-source"]));
-        }
-        view
-    }
-
-    fn message(text: &str) -> gtk::Box {
-        let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        content.append(&Self::label(text, &[]));
-        content
-    }
-
-    fn label(text: &str, classes: &[&str]) -> gtk::Label {
-        gtk::Label::builder()
-            .label(text)
-            .wrap(true)
-            .wrap_mode(gtk::pango::WrapMode::WordChar)
-            .xalign(0.0)
-            .selectable(true)
-            .css_classes(classes.iter().copied().map(String::from).collect::<Vec<_>>())
-            .build()
-    }
-
-    fn show_card(&self, content: &gtk::Box) {
-        self.card.set_child(Some(content));
-        self.card.set_visible(true);
-        self.card.vadjustment().set_value(0.0);
-    }
-
-    /// Карточка встаёт под выделением, если там хватает места, иначе над ним.
-    fn card_position(&self, layers: &gtk::Overlay, widget: &gtk::Widget) -> Option<gdk::Rectangle> {
-        if widget != self.card.upcast_ref::<gtk::Widget>() {
-            return None;
-        }
-        let area = (*self.selection.borrow())?;
-        let (_, natural) = widget.preferred_size();
-        let (width, height) = (Self::CARD_WIDTH, natural.height());
-        let (screen_width, screen_height) = (layers.width(), layers.height());
-
-        let x = (area.x as i32).clamp(Self::CARD_GAP, (screen_width - width - Self::CARD_GAP).max(Self::CARD_GAP));
-        let below = area.bottom() as i32 + Self::CARD_GAP;
-        let above = area.y as i32 - Self::CARD_GAP - height;
-        let y = if below + height <= screen_height {
-            below
-        } else if above >= Self::CARD_GAP {
-            above
-        } else {
-            (screen_height - height - Self::CARD_GAP).max(Self::CARD_GAP)
-        };
-        Some(gdk::Rectangle::new(x, y, width, height))
-    }
-
     fn draw(&self, context: &gtk::cairo::Context, width: i32, height: i32) {
         context.set_source_rgba(0.0, 0.0, 0.0, 0.35);
         context.rectangle(0.0, 0.0, f64::from(width), f64::from(height));
-        let selection = *self.selection.borrow();
+        let selection = self.selection.get();
         if let Some(area) = selection {
             context.rectangle(area.x, area.y, area.width, area.height);
         }

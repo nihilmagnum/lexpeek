@@ -1,5 +1,9 @@
+pub mod action;
 pub mod app;
-pub mod languages_window;
 pub mod overlay;
+pub mod reading_card;
+pub mod selection_popup;
+pub mod settings_window;
 pub mod shortcut_editor;
+pub mod shortcuts_window;
 pub mod tray;

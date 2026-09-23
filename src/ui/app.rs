@@ -1,29 +1,44 @@
 use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 use ksni::TrayMethods;
 
+use crate::application::desktop::{GlobalShortcuts, LoginAutostart, ScreenCapture, ShortcutPress, ShortcutSpec};
 use crate::application::languages::LanguagesService;
-use crate::application::reading::ScreenReading;
-use crate::infrastructure::autostart::Autostart;
-use crate::infrastructure::screenshot::ScreenCapture;
-use crate::infrastructure::shortcut::CaptureShortcut;
-use crate::ui::languages_window::LanguagesWindow;
+use crate::application::reading::TextReading;
+use crate::application::selection::SelectionTranslation;
+use crate::application::translators::Translators;
+use crate::ui::action::{Action, Activation};
 use crate::ui::overlay::Overlay;
-use crate::ui::shortcut_editor::ShortcutEditor;
-use crate::ui::tray::{TrayCommand, TrayIcon};
+use crate::ui::selection_popup::SelectionPopup;
+use crate::ui::settings_window::SettingsWindow;
+use crate::ui::shortcuts_window::ShortcutsWindow;
+use crate::ui::tray::TrayIcon;
 
-/// Всё, из чего собирается приложение.
-pub struct Services {
-    pub reading: Arc<ScreenReading>,
+/// Сценарии и возможности рабочего стола, с которыми работает приложение.
+pub struct Features {
+    pub reading: Arc<TextReading>,
     pub languages: Arc<LanguagesService>,
-    pub autostart: Autostart,
+    pub translators: Arc<Translators>,
+    pub selection: Arc<SelectionTranslation>,
+    pub screen: Arc<dyn ScreenCapture>,
+    pub shortcuts: Arc<dyn GlobalShortcuts>,
+    pub autostart: Arc<dyn LoginAutostart>,
 }
 
-/// Фоновое приложение со значком на панели: каждый запуск `lexpeek` снимает экран и открывает кадр для выделения.
-pub struct App;
+/// Фоновое приложение со значком на панели.
+pub struct App {
+    application: gtk::Application,
+    reading: Arc<TextReading>,
+    languages: Arc<LanguagesService>,
+    translators: Arc<Translators>,
+    selection: Arc<SelectionTranslation>,
+    screen: Arc<dyn ScreenCapture>,
+    shortcuts: Arc<dyn GlobalShortcuts>,
+}
 
 impl App {
     pub const ID: &str = "io.github.lexpeek.Lexpeek";
@@ -38,62 +53,102 @@ impl App {
         }
         .lexpeek-recognized { opacity: 0.65; font-style: italic; }
         .lexpeek-translation { font-size: 1.1em; }
-        .lexpeek-term { font-weight: bold; font-size: 1.15em; }
-        .lexpeek-source { opacity: 0.55; font-size: 0.85em; margin-bottom: 4px; }
+        .lexpeek-part-of-speech { opacity: 0.55; font-size: 0.85em; margin-top: 4px; }
+        .lexpeek-section { font-weight: bold; margin-top: 6px; }
+        .lexpeek-dim { opacity: 0.7; }
+        window.lexpeek-popup { background: transparent; }
     ";
 
     /// Первый запуск только появляется на панели, следующие открывают кадр; в фоновом режиме
     /// повторный запуск ничего не делает.
-    pub fn run(services: Services, background: bool) -> glib::ExitCode {
-        let app = gtk::Application::builder().application_id(Self::ID).build();
-        if let Err(error) = app.register(gio::Cancellable::NONE) {
+    pub fn run(features: Features, background: bool) -> glib::ExitCode {
+        let application = gtk::Application::builder().application_id(Self::ID).build();
+        if let Err(error) = application.register(gio::Cancellable::NONE) {
             eprintln!("lexpeek: {error}");
             return glib::ExitCode::FAILURE;
         }
-        if app.is_remote() {
-            return if background { glib::ExitCode::SUCCESS } else { app.run_with_args::<&str>(&[]) };
+        if application.is_remote() {
+            return if background { glib::ExitCode::SUCCESS } else { application.run_with_args::<&str>(&[]) };
         }
-        // Портал запоминает приложение при первом обращении, поэтому регистрация идёт раньше снимков и горячих клавиш.
-        let registration = async { ashpd::register_host_app(Self::ID.try_into()?).await };
-        if let Err(error) = glib::MainContext::default().block_on(registration) {
-            eprintln!("lexpeek: cannot register in portals: {error}");
-        }
-
-        let Services { reading, languages, autostart } = services;
+        let Features { reading, languages, translators, selection, screen, shortcuts, autostart } = features;
+        let app = Rc::new(Self {
+            application: application.clone(),
+            reading,
+            languages,
+            translators,
+            selection,
+            screen,
+            shortcuts,
+        });
         // Первый экземпляр остаётся в фоне, чтобы следующие запуски сразу доходили до него.
-        let _hold = app.hold();
+        let _hold = application.hold();
         // GTK уже инициализирован: register() сам отправляет startup первому экземпляру.
         Self::load_style();
-        Self::download_pair_models(Arc::clone(&languages));
-        Self::show_tray_icon(&app, autostart, languages);
-        Self::listen_shortcut(&app);
+        app.download_pair_models();
+        app.show_tray_icon(autostart);
+        app.listen_shortcuts();
         // run() активирует первый экземпляр сразу, а кадр должен открываться только по запросу.
         let skip_activation = Cell::new(true);
-        app.connect_activate(move |app| {
-            if skip_activation.replace(false) {
-                return;
+        application.connect_activate(move |_| {
+            if !skip_activation.replace(false) {
+                app.perform(Action::CaptureArea, Activation::default());
             }
-            Self::lookup_screen(app, Arc::clone(&reading));
         });
-        app.run_with_args::<&str>(&[])
+        application.run_with_args::<&str>(&[])
     }
 
-    fn lookup_screen(app: &gtk::Application, reading: Arc<ScreenReading>) {
-        if let Some(window) = app.active_window() {
+    fn perform(&self, action: Action, activation: Activation) {
+        match action {
+            Action::CaptureArea => self.capture_area(activation),
+            Action::TranslateSelection => {
+                SelectionPopup::show(&self.application, Arc::clone(&self.selection), &activation)
+            }
+            Action::CopyTranslation => self.run_without_window(|selection| selection.copy()),
+            Action::ReplaceSelection => self.run_without_window(|selection| selection.replace()),
+            Action::Settings => {
+                SettingsWindow::show(&self.application, Arc::clone(&self.languages), Arc::clone(&self.translators))
+            }
+            Action::Shortcuts => ShortcutsWindow::show(&self.application, Arc::clone(&self.shortcuts)),
+            Action::Quit => self.application.quit(),
+        }
+    }
+
+    fn capture_area(&self, activation: Activation) {
+        if let Some(window) = self.application.active_window() {
             window.present();
             return;
         }
-        let app = app.clone();
+        let application = self.application.clone();
+        let reading = Arc::clone(&self.reading);
+        let screen = Arc::clone(&self.screen);
         glib::spawn_future_local(async move {
-            match ScreenCapture::take().await {
-                Ok(screenshot) => Overlay::show(&app, screenshot, reading),
-                Err(error) => eprintln!("lexpeek: {error:#}"),
+            match gio::spawn_blocking(move || screen.capture()).await {
+                Ok(Ok(screenshot)) => Overlay::show(&application, screenshot, reading, &activation),
+                Ok(Err(error)) => eprintln!("lexpeek: {error:#}"),
+                Err(_) => eprintln!("lexpeek: screen capture crashed"),
             }
+        });
+    }
+
+    /// У действия без окна сбой виден только в уведомлении.
+    fn run_without_window(&self, work: impl FnOnce(&SelectionTranslation) -> anyhow::Result<()> + Send + 'static) {
+        let selection = Arc::clone(&self.selection);
+        let application = self.application.clone();
+        glib::spawn_future_local(async move {
+            let message = match gio::spawn_blocking(move || work(&selection)).await {
+                Ok(Ok(())) => return,
+                Ok(Err(error)) => format!("{error:#}"),
+                Err(_) => "translation crashed".to_owned(),
+            };
+            let notification = gio::Notification::new("Lexpeek не смог перевести выделенный текст");
+            notification.set_body(Some(&message));
+            application.send_notification(None, &notification);
         });
     }
 
     /// Модели для выбранной пары языков, например при первом запуске.
-    fn download_pair_models(languages: Arc<LanguagesService>) {
+    fn download_pair_models(&self) {
+        let languages = Arc::clone(&self.languages);
         glib::spawn_future_local(async move {
             if let Ok(Err(error)) = gio::spawn_blocking(move || languages.download_pair_models()).await {
                 eprintln!("lexpeek: {error:#}");
@@ -101,30 +156,42 @@ impl App {
         });
     }
 
-    fn listen_shortcut(app: &gtk::Application) {
-        let app = app.clone();
+    /// Порт слушает нажатия, пока работает приложение, поэтому занимает свой поток, а нажатия
+    /// передаются в главный поток GTK.
+    fn listen_shortcuts(self: &Rc<Self>) {
+        let (presses, received) = async_channel::unbounded::<ShortcutPress>();
+        let shortcuts = Arc::clone(&self.shortcuts);
+        std::thread::spawn(move || {
+            let specs: Vec<ShortcutSpec> = Action::WITH_SHORTCUT.into_iter().filter_map(Action::shortcut).collect();
+            let on_press = Box::new(move |press| {
+                // Канал закрыт, только когда приложение уже завершается.
+                let _ = presses.send_blocking(press);
+            });
+            if let Err(error) = shortcuts.listen(&specs, on_press) {
+                eprintln!("lexpeek: global shortcuts are unavailable: {error:#}");
+            }
+        });
+        let app = Rc::clone(self);
         glib::spawn_future_local(async move {
-            if let Err(error) = CaptureShortcut::listen(move || app.activate()).await {
-                eprintln!("lexpeek: global shortcut is unavailable: {error}");
+            while let Ok(press) = received.recv().await {
+                if let Some(action) = Action::by_shortcut_id(&press.id) {
+                    app.perform(action, Activation::with_token(press.activation_token));
+                }
             }
         });
     }
 
-    fn show_tray_icon(app: &gtk::Application, autostart: Autostart, languages: Arc<LanguagesService>) {
-        let (commands, received) = async_channel::unbounded();
-        let app = app.clone();
+    fn show_tray_icon(self: &Rc<Self>, autostart: Arc<dyn LoginAutostart>) {
+        let (actions, received) = async_channel::unbounded();
+        let tray = TrayIcon::new(Self::ID, autostart, actions);
+        let app = Rc::clone(self);
         glib::spawn_future_local(async move {
-            let _tray = match TrayIcon::new(Self::ID, autostart, commands).spawn().await {
+            let _tray = match tray.spawn().await {
                 Ok(tray) => tray,
                 Err(error) => return eprintln!("lexpeek: cannot show tray icon: {error}"),
             };
-            while let Ok(command) = received.recv().await {
-                match command {
-                    TrayCommand::Capture => app.activate(),
-                    TrayCommand::ChangeShortcut => ShortcutEditor::show(&app, Self::ID),
-                    TrayCommand::Languages => LanguagesWindow::show(&app, Arc::clone(&languages)),
-                    TrayCommand::Quit => app.quit(),
-                }
+            while let Ok(action) = received.recv().await {
+                app.perform(action, Activation::default());
             }
         });
     }

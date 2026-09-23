@@ -1,34 +1,40 @@
-/// Нормализованный заголовок словарной статьи, по которому ищут.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HeadwordKey(String);
+/// Словарная статья слова или короткого выражения.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DictionaryArticle {
+    /// Произношение оригинала латиницей.
+    pub transcription: Option<String>,
+    pub meanings: Vec<Meaning>,
+    pub definitions: Vec<Definition>,
+    pub examples: Vec<String>,
+}
 
-impl HeadwordKey {
-    pub fn new(headword: &str) -> Self {
-        let normalized = headword.replace('’', "'").to_lowercase();
-        Self(normalized.split_whitespace().collect::<Vec<_>>().join(" "))
+impl DictionaryArticle {
+    pub fn is_empty(&self) -> bool {
+        self.meanings.is_empty() && self.definitions.is_empty() && self.examples.is_empty()
     }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Article {
-    pub dictionary: String,
-    pub headword: String,
-    pub body: String,
+/// Варианты перевода для одной части речи, от самого употребительного.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Meaning {
+    pub part_of_speech: String,
+    pub translations: Vec<MeaningTranslation>,
 }
 
-/// Словарь целиком, как его импортируют.
-pub struct Dictionary {
-    pub name: String,
-    pub entries: Vec<DictionaryEntry>,
+#[derive(Clone, Debug, PartialEq)]
+pub struct MeaningTranslation {
+    pub word: String,
+    /// Близкие по смыслу варианты перевода.
+    pub synonyms: Vec<String>,
+    /// Слова оригинала, которые тоже переводятся этим вариантом.
+    pub back_translations: Vec<String>,
 }
 
-pub struct DictionaryEntry {
-    pub headword: String,
-    /// Синонимы и словоформы, которые ведут на эту статью.
-    pub aliases: Vec<String>,
-    pub body: String,
+/// Толкование на языке оригинала.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Definition {
+    pub part_of_speech: String,
+    pub gloss: String,
+    pub example: Option<String>,
+    pub synonyms: Vec<String>,
 }

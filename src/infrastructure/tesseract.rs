@@ -45,7 +45,7 @@ impl TesseractRecognizer {
 impl TextRecognizer for TesseractRecognizer {
     fn recognize(&self, fragment: &RgbaImage, languages: &[Language]) -> Result<String> {
         for language in languages {
-            ensure!(self.models.is_installed(language), "OCR model for {} is not downloaded", language.code);
+            ensure!(self.models.is_installed(language), "OCR model for {} is not downloaded", language.code());
         }
         let names: Vec<&str> = languages.iter().map(TesseractModels::model_name).collect();
         let directory = self.models.directory().to_string_lossy();
@@ -79,7 +79,7 @@ impl TesseractModels {
 
     /// Имя модели Tesseract для языка; модель добавленного пользователем языка названа его кодом.
     pub fn model_name(language: &Language) -> &str {
-        match &*language.code {
+        match language.code().as_str() {
             "ru" => "rus",
             "en" => "eng",
             "de" => "deu",
@@ -118,7 +118,8 @@ impl OcrModelStore for TesseractModels {
 
     fn download(&self, language: &Language) -> Result<()> {
         let url = format!("{}/{}.traineddata", Self::DOWNLOAD_URL, Self::model_name(language));
-        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(300))).build().into();
+        let config = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(300))).build();
+        let agent: ureq::Agent = config.into();
         let model = agent
             .get(&url)
             .call()
@@ -146,6 +147,7 @@ impl OcrModelStore for TesseractModels {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::language::LanguageCode;
 
     #[test]
     fn installs_custom_language_model_from_file_and_removes_it() {
@@ -153,7 +155,7 @@ mod tests {
         let file = directory.path().join("any-name.traineddata");
         fs::write(&file, b"model").unwrap();
         let models = TesseractModels::new(directory.path().join("tessdata"));
-        let georgian = Language::custom("ka", "Грузинский").unwrap();
+        let georgian = Language::custom(LanguageCode::parse("ka").unwrap(), "Грузинский").unwrap();
 
         models.install_from_file(&georgian, &file).unwrap();
         assert!(models.is_installed(&georgian));
