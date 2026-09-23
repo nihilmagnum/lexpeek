@@ -36,13 +36,18 @@ impl SelectionTranslation {
         Self { selection, reading, clipboard, keystroke }
     }
 
-    /// Перевод со словарной статьёй; `None`, если ничего не выделено.
-    pub fn read(&self) -> Result<Option<Reading>> {
-        self.selected()?.map(|text| self.reading.read_text(&text)).transpose()
+    /// `None`, если ничего не выделено.
+    pub fn selected_text(&self) -> Result<Option<String>> {
+        Ok(self.selection.read()?.map(|text| text.trim().to_owned()).filter(|text| !text.is_empty()))
+    }
+
+    /// Перевод выделенного текста со словарной статьёй.
+    pub fn read(&self, text: &str) -> Result<Reading> {
+        self.reading.read_text(text)
     }
 
     pub fn copy(&self) -> Result<()> {
-        let text = self.selected()?.context("no text is selected")?;
+        let text = self.selected_text()?.context("no text is selected")?;
         self.clipboard.put(&self.reading.translate(&text)?)
     }
 
@@ -50,10 +55,6 @@ impl SelectionTranslation {
     pub fn replace(&self) -> Result<()> {
         self.copy()?;
         self.keystroke.paste()
-    }
-
-    fn selected(&self) -> Result<Option<String>> {
-        Ok(self.selection.read()?.map(|text| text.trim().to_owned()).filter(|text| !text.is_empty()))
     }
 }
 
@@ -186,7 +187,7 @@ mod tests {
     fn does_nothing_without_selection() {
         let fixture = fixture(None);
 
-        assert!(fixture.translation.read().unwrap().is_none());
+        assert!(fixture.translation.selected_text().unwrap().is_none());
         assert!(fixture.translation.replace().is_err());
         assert!(fixture.clipboard.0.lock().unwrap().is_none());
         assert_eq!(fixture.keystroke.0.load(Ordering::SeqCst), 0);

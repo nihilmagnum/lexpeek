@@ -101,7 +101,7 @@ impl App {
         match action {
             Action::CaptureArea => self.capture_area(activation),
             Action::TranslateSelection => {
-                SelectionPopup::show(&self.application, Arc::clone(&self.selection), &activation)
+                SelectionPopup::show(&self.application, Arc::clone(&self.selection), activation)
             }
             Action::CopyTranslation => self.run_without_window(|selection| selection.copy()),
             Action::ReplaceSelection => self.run_without_window(|selection| selection.replace()),

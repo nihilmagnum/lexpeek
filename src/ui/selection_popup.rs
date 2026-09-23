@@ -18,13 +18,32 @@ pub struct SelectionPopup {
 }
 
 impl SelectionPopup {
-    pub fn show(app: &gtk::Application, selection: Arc<SelectionTranslation>, activation: &Activation) {
+    /// Выделение читается до того, как окно появится: чтение на мгновение забирает фокус,
+    /// а окно закрывается, когда его теряет.
+    pub fn show(app: &gtk::Application, selection: Arc<SelectionTranslation>, activation: Activation) {
+        let app = app.clone();
+        glib::spawn_future_local(async move {
+            let reader = Arc::clone(&selection);
+            let message = match gio::spawn_blocking(move || reader.selected_text()).await {
+                Ok(Ok(Some(text))) => {
+                    Self::open(&app, &activation, "Перевожу…").translate(selection, text).await;
+                    return;
+                }
+                Ok(Ok(None)) => "Нет выделенного текста".to_owned(),
+                Ok(Err(error)) => format!("Не удалось прочитать выделение: {error:#}"),
+                Err(_) => "Чтение выделения аварийно завершилось".to_owned(),
+            };
+            Self::open(&app, &activation, &message);
+        });
+    }
+
+    fn open(app: &gtk::Application, activation: &Activation, message: &str) -> Rc<Self> {
         let card = ReadingCard::new();
         card.widget().set_margin_top(12);
         card.widget().set_margin_bottom(12);
         card.widget().set_margin_start(12);
         card.widget().set_margin_end(12);
-        card.show_message("Перевожу…");
+        card.show_message(message);
         let window = gtk::ApplicationWindow::builder()
             .application(app)
             .title("Lexpeek")
@@ -50,19 +69,18 @@ impl SelectionPopup {
             }
         ));
         activation.present(&window);
-
-        glib::spawn_future_local(async move {
-            let reading = gio::spawn_blocking(move || selection.read()).await;
-            match reading {
-                Ok(Ok(Some(reading))) => popup.card.show_reading(&reading),
-                Ok(Ok(None)) => popup.card.show_message("Нет выделенного текста"),
-                Ok(Err(error)) => popup.card.show_message(&format!("Не удалось перевести: {error:#}")),
-                Err(_) => popup.card.show_message("Перевод аварийно завершился"),
-            }
-        });
+        popup
     }
 
-    fn connect_escape(self: &Rc<Self>) {
+    async fn translate(&self, selection: Arc<SelectionTranslation>, text: String) {
+        match gio::spawn_blocking(move || selection.read(&text)).await {
+            Ok(Ok(reading)) => self.card.show_reading(&reading),
+            Ok(Err(error)) => self.card.show_message(&format!("Не удалось перевести: {error:#}")),
+            Err(_) => self.card.show_message("Перевод аварийно завершился"),
+        }
+    }
+
+    fn connect_escape(&self) {
         let keys = gtk::EventControllerKey::new();
         keys.connect_key_pressed(glib::clone!(
             #[weak(rename_to = window)]
