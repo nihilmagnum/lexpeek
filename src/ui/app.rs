@@ -10,6 +10,7 @@ use crate::application::desktop::{GlobalShortcuts, LoginAutostart, ScreenCapture
 use crate::application::languages::LanguagesService;
 use crate::application::reading::TextReading;
 use crate::application::selection::SelectionTranslation;
+use crate::application::speech::TranslationSpeech;
 use crate::application::translators::Translators;
 use crate::ui::action::{Action, Activation};
 use crate::ui::overlay::Overlay;
@@ -24,6 +25,7 @@ pub struct Features {
     pub languages: Arc<LanguagesService>,
     pub translators: Arc<Translators>,
     pub selection: Arc<SelectionTranslation>,
+    pub speech: Arc<TranslationSpeech>,
     pub screen: Arc<dyn ScreenCapture>,
     pub shortcuts: Arc<dyn GlobalShortcuts>,
     pub autostart: Arc<dyn LoginAutostart>,
@@ -36,6 +38,7 @@ pub struct App {
     languages: Arc<LanguagesService>,
     translators: Arc<Translators>,
     selection: Arc<SelectionTranslation>,
+    speech: Arc<TranslationSpeech>,
     screen: Arc<dyn ScreenCapture>,
     shortcuts: Arc<dyn GlobalShortcuts>,
 }
@@ -70,13 +73,14 @@ impl App {
         if application.is_remote() {
             return if background { glib::ExitCode::SUCCESS } else { application.run_with_args::<&str>(&[]) };
         }
-        let Features { reading, languages, translators, selection, screen, shortcuts, autostart } = features;
+        let Features { reading, languages, translators, selection, speech, screen, shortcuts, autostart } = features;
         let app = Rc::new(Self {
             application: application.clone(),
             reading,
             languages,
             translators,
             selection,
+            speech,
             screen,
             shortcuts,
         });
@@ -101,7 +105,8 @@ impl App {
         match action {
             Action::CaptureArea => self.capture_area(activation),
             Action::TranslateSelection => {
-                SelectionPopup::show(&self.application, Arc::clone(&self.selection), activation)
+                let speech = Arc::clone(&self.speech);
+                SelectionPopup::show(&self.application, Arc::clone(&self.selection), speech, activation)
             }
             Action::CopyTranslation => self.run_without_window(|selection| selection.copy()),
             Action::ReplaceSelection => self.run_without_window(|selection| selection.replace()),
@@ -120,10 +125,11 @@ impl App {
         }
         let application = self.application.clone();
         let reading = Arc::clone(&self.reading);
+        let speech = Arc::clone(&self.speech);
         let screen = Arc::clone(&self.screen);
         glib::spawn_future_local(async move {
             match gio::spawn_blocking(move || screen.capture()).await {
-                Ok(Ok(screenshot)) => Overlay::show(&application, screenshot, reading, &activation),
+                Ok(Ok(screenshot)) => Overlay::show(&application, screenshot, reading, speech, &activation),
                 Ok(Err(error)) => eprintln!("lexpeek: {error:#}"),
                 Err(_) => eprintln!("lexpeek: screen capture crashed"),
             }

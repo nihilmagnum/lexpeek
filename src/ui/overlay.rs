@@ -7,6 +7,7 @@ use gtk::{gdk, gio, glib};
 use image::RgbaImage;
 
 use crate::application::reading::TextReading;
+use crate::application::speech::TranslationSpeech;
 use crate::ui::action::Activation;
 use crate::ui::reading_card::{Anchor, ReadingCard};
 
@@ -28,12 +29,18 @@ pub struct Overlay {
 impl Overlay {
     const MIN_SELECTION: f64 = 6.0;
 
-    pub fn show(app: &gtk::Application, screenshot: RgbaImage, reading: Arc<TextReading>, activation: &Activation) {
+    pub fn show(
+        app: &gtk::Application,
+        screenshot: RgbaImage,
+        reading: Arc<TextReading>,
+        speech: Arc<TranslationSpeech>,
+        activation: &Activation,
+    ) {
         let window = gtk::ApplicationWindow::builder().application(app).decorated(false).build();
         let picture = gtk::Picture::builder().content_fit(gtk::ContentFit::Fill).can_shrink(true).build();
         let canvas = gtk::DrawingArea::builder().hexpand(true).vexpand(true).build();
         canvas.set_cursor_from_name(Some("crosshair"));
-        let card = ReadingCard::new();
+        let card = ReadingCard::new(speech);
 
         let layers = gtk::Overlay::builder().child(&picture).build();
         layers.add_overlay(&canvas);

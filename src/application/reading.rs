@@ -14,14 +14,17 @@ pub trait TextRecognizer: Send + Sync {
 }
 
 /// Перевод текста вместе со словарной статьёй.
+#[derive(Clone)]
 pub struct Translation {
     pub text: String,
+    /// Язык перевода.
+    pub language: Language,
     pub article: DictionaryArticle,
 }
 
-impl From<Translated> for Translation {
-    fn from(translated: Translated) -> Self {
-        Self { text: translated.text, article: translated.article }
+impl Translation {
+    fn new(translated: Translated, language: &Language) -> Self {
+        Self { text: translated.text, language: language.clone(), article: translated.article }
     }
 }
 
@@ -70,7 +73,8 @@ impl TextReading {
 
     fn read(&self, text: String, pair: &LanguagePair) -> Reading {
         if text.is_empty() {
-            let translation = Translation { text: String::new(), article: DictionaryArticle::default() };
+            let language = pair.native().clone();
+            let translation = Translation { text: String::new(), language, article: DictionaryArticle::default() };
             return Reading { text, translation: Ok(translation) };
         }
         let translation = self.translate_in_pair(&SourceText::from_recognized(&text), pair);
@@ -89,11 +93,11 @@ impl TextReading {
         let source = Self::clarify_source(translator.as_ref(), text, pair, translated.source.as_ref())?;
         let target = pair.target_for(source.as_ref());
         if target == native && source == detected {
-            return Ok(translated.into());
+            return Ok(Translation::new(translated, target));
         }
         let request =
             TranslationRequest { text, source: source.as_ref(), target, likely_source: native, interface: native };
-        Ok(translator.translate(&request)?.into())
+        Ok(Translation::new(translator.translate(&request)?, target))
     }
 
     /// Язык отдельного слова переводчик часто путает с похожим, например русский с болгарским.

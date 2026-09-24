@@ -6,6 +6,7 @@ use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 
 use crate::application::selection::SelectionTranslation;
+use crate::application::speech::TranslationSpeech;
 use crate::ui::action::Activation;
 use crate::ui::reading_card::ReadingCard;
 
@@ -20,25 +21,35 @@ pub struct SelectionPopup {
 impl SelectionPopup {
     /// Выделение читается до того, как окно появится: чтение на мгновение забирает фокус,
     /// а окно закрывается, когда его теряет.
-    pub fn show(app: &gtk::Application, selection: Arc<SelectionTranslation>, activation: Activation) {
+    pub fn show(
+        app: &gtk::Application,
+        selection: Arc<SelectionTranslation>,
+        speech: Arc<TranslationSpeech>,
+        activation: Activation,
+    ) {
         let app = app.clone();
         glib::spawn_future_local(async move {
             let reader = Arc::clone(&selection);
             let message = match gio::spawn_blocking(move || reader.selected_text()).await {
                 Ok(Ok(Some(text))) => {
-                    Self::open(&app, &activation, "Перевожу…").translate(selection, text).await;
+                    Self::open(&app, &activation, speech, "Перевожу…").translate(selection, text).await;
                     return;
                 }
                 Ok(Ok(None)) => "Нет выделенного текста".to_owned(),
                 Ok(Err(error)) => format!("Не удалось прочитать выделение: {error:#}"),
                 Err(_) => "Чтение выделения аварийно завершилось".to_owned(),
             };
-            Self::open(&app, &activation, &message);
+            Self::open(&app, &activation, speech, &message);
         });
     }
 
-    fn open(app: &gtk::Application, activation: &Activation, message: &str) -> Rc<Self> {
-        let card = ReadingCard::new();
+    fn open(
+        app: &gtk::Application,
+        activation: &Activation,
+        speech: Arc<TranslationSpeech>,
+        message: &str,
+    ) -> Rc<Self> {
+        let card = ReadingCard::new(speech);
         card.widget().set_margin_top(12);
         card.widget().set_margin_bottom(12);
         card.widget().set_margin_start(12);
