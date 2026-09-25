@@ -2,8 +2,8 @@
 Type=Application
 Name=Lexpeek
 Comment=Перевод текста с экрана
-Exec=@BINARY@
-Icon=io.github.lexpeek.Lexpeek
+Exec=lexpeek
+Icon=io.github.nihilmagnum.Lexpeek
 Terminal=false
 StartupNotify=false
 Categories=Utility;Office;Dictionary;

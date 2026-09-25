@@ -18,7 +18,7 @@ use crate::application::translators::{Translator, Translators};
 use crate::infrastructure::autostart::DesktopEntryAutostart;
 use crate::infrastructure::google::GoogleTranslator;
 use crate::infrastructure::google_speech::GoogleSpeaker;
-use crate::infrastructure::portal::PortalRegistration;
+use crate::infrastructure::portal::PortalAccess;
 use crate::infrastructure::remote_keyboard::RemoteKeyboard;
 use crate::infrastructure::screenshot::PortalScreenCapture;
 use crate::infrastructure::settings_file::SettingsFile;
@@ -52,8 +52,11 @@ fn main() -> ExitCode {
 }
 
 fn features(directories: &ProjectDirs) -> Result<Features> {
-    if let Err(error) = PortalRegistration::register(App::ID) {
+    if let Err(error) = PortalAccess::register(App::ID) {
         eprintln!("lexpeek: cannot register in portals: {error:#}");
+    }
+    if let Err(error) = PortalAccess::allow_screenshots(App::ID) {
+        eprintln!("lexpeek: cannot allow screenshots: {error:#}");
     }
     let settings = Arc::new(SettingsFile::new(directories.config_dir().join("settings.json")));
     let models = TesseractModels::new(directories.data_dir().join("tessdata"));

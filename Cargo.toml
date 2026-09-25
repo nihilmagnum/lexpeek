@@ -2,6 +2,11 @@
 name = "lexpeek"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "Screen text translator for GNOME on Wayland"
+authors = ["nihilmagnum <megasanial@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/nihilmagnum/lexpeek"
 
 [dependencies]
 anyhow = "1.0.104"
@@ -22,3 +27,17 @@ uuid = { version = "1.26.1", features = ["v4"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+[package.metadata.deb]
+section = "utils"
+extended-description = """\
+Translates text on the screen: select an area or text in any window, press a shortcut \
+and get the translation with a dictionary article and speech."""
+# $auto находит библиотеки, с которыми слинкован бинарник; wl-clipboard и плагины GStreamer он найти не может.
+depends = "$auto, wl-clipboard, gstreamer1.0-plugins-good"
+assets = [
+    ["target/release/lexpeek", "usr/bin/", "755"],
+    ["data/io.github.nihilmagnum.Lexpeek.desktop", "usr/share/applications/", "644"],
+    ["data/io.github.nihilmagnum.Lexpeek.svg", "usr/share/icons/hicolor/scalable/apps/", "644"],
+    ["README.md", "usr/share/doc/lexpeek/", "644"],
+]

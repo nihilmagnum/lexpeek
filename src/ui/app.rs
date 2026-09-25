@@ -44,7 +44,7 @@ pub struct App {
 }
 
 impl App {
-    pub const ID: &str = "io.github.lexpeek.Lexpeek";
+    pub const ID: &str = "io.github.nihilmagnum.Lexpeek";
     const STYLE: &str = "
         .lexpeek-card {
             background-color: rgb(36, 36, 40);
