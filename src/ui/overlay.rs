@@ -7,7 +7,7 @@ use gtk::{gdk, gio, glib};
 use image::RgbaImage;
 
 use crate::application::reading::TextReading;
-use crate::application::speech::TranslationSpeech;
+use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
 use crate::ui::reading_card::{Anchor, ReadingCard};
 
@@ -33,7 +33,7 @@ impl Overlay {
         app: &gtk::Application,
         screenshot: RgbaImage,
         reading: Arc<TextReading>,
-        speech: Arc<TranslationSpeech>,
+        speech: Arc<ReadingSpeech>,
         activation: &Activation,
     ) {
         let window = gtk::ApplicationWindow::builder().application(app).decorated(false).build();

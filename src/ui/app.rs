@@ -10,7 +10,7 @@ use crate::application::desktop::{GlobalShortcuts, LoginAutostart, ScreenCapture
 use crate::application::languages::LanguagesService;
 use crate::application::reading::TextReading;
 use crate::application::selection::SelectionTranslation;
-use crate::application::speech::TranslationSpeech;
+use crate::application::speech::ReadingSpeech;
 use crate::application::translators::Translators;
 use crate::ui::action::{Action, Activation};
 use crate::ui::overlay::Overlay;
@@ -25,7 +25,7 @@ pub struct Features {
     pub languages: Arc<LanguagesService>,
     pub translators: Arc<Translators>,
     pub selection: Arc<SelectionTranslation>,
-    pub speech: Arc<TranslationSpeech>,
+    pub speech: Arc<ReadingSpeech>,
     pub screen: Arc<dyn ScreenCapture>,
     pub shortcuts: Arc<dyn GlobalShortcuts>,
     pub autostart: Arc<dyn LoginAutostart>,
@@ -38,7 +38,7 @@ pub struct App {
     languages: Arc<LanguagesService>,
     translators: Arc<Translators>,
     selection: Arc<SelectionTranslation>,
-    speech: Arc<TranslationSpeech>,
+    speech: Arc<ReadingSpeech>,
     screen: Arc<dyn ScreenCapture>,
     shortcuts: Arc<dyn GlobalShortcuts>,
 }

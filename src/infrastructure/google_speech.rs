@@ -3,7 +3,8 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 
 use crate::application::speech::Speaker;
-use crate::domain::language::Language;
+use crate::domain::language::LanguageCode;
+use crate::domain::text::Phrase;
 use crate::infrastructure::audio_player::GtkAudioPlayer;
 
 /// Озвучка Google Переводчика.
@@ -22,14 +23,14 @@ impl GoogleSpeaker {
         Self { agent: config.into(), player: GtkAudioPlayer }
     }
 
-    fn code(language: &Language) -> &str {
-        match language.code().as_str() {
+    fn code(language: &LanguageCode) -> &str {
+        match language.as_str() {
             "zh" => "zh-CN",
             code => code,
         }
     }
 
-    fn synthesize(&self, chunk: &str, language: &Language) -> Result<Vec<u8>> {
+    fn synthesize(&self, chunk: &str, language: &LanguageCode) -> Result<Vec<u8>> {
         self.agent
             .get(Self::ENDPOINT)
             .query_pairs([("client", "dict-chrome-ex"), ("ie", "UTF-8"), ("tl", Self::code(language)), ("q", chunk)])
@@ -66,10 +67,10 @@ impl GoogleSpeaker {
 
 impl Speaker for GoogleSpeaker {
     /// Кадры MP3 независимы, поэтому озвучка кусков склеивается в одну запись и звучит без пауз.
-    fn speak(&self, text: &str, language: &Language) -> Result<()> {
+    fn speak(&self, phrase: &Phrase) -> Result<()> {
         let mut audio = Vec::new();
-        for chunk in Self::chunks(text) {
-            audio.extend(self.synthesize(&chunk, language)?);
+        for chunk in Self::chunks(&phrase.text) {
+            audio.extend(self.synthesize(&chunk, &phrase.language)?);
         }
         self.player.play(audio)
     }

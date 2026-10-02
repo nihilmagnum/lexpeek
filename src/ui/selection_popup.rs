@@ -6,7 +6,7 @@ use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 
 use crate::application::selection::SelectionTranslation;
-use crate::application::speech::TranslationSpeech;
+use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
 use crate::ui::reading_card::ReadingCard;
 
@@ -24,7 +24,7 @@ impl SelectionPopup {
     pub fn show(
         app: &gtk::Application,
         selection: Arc<SelectionTranslation>,
-        speech: Arc<TranslationSpeech>,
+        speech: Arc<ReadingSpeech>,
         activation: Activation,
     ) {
         let app = app.clone();
@@ -46,7 +46,7 @@ impl SelectionPopup {
     fn open(
         app: &gtk::Application,
         activation: &Activation,
-        speech: Arc<TranslationSpeech>,
+        speech: Arc<ReadingSpeech>,
         message: &str,
     ) -> Rc<Self> {
         let card = ReadingCard::new(speech);

@@ -1,3 +1,12 @@
+use crate::domain::language::LanguageCode;
+
+/// Текст на известном языке.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Phrase {
+    pub text: String,
+    pub language: LanguageCode,
+}
+
 /// Текст для перевода.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SourceText(String);

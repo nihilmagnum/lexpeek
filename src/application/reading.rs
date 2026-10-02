@@ -7,7 +7,7 @@ use crate::application::languages::LanguageSetupRepository;
 use crate::application::translators::{DetectedLanguage, Translated, TranslationRequest, Translator, Translators};
 use crate::domain::dictionary::DictionaryArticle;
 use crate::domain::language::{Language, LanguageCode, LanguagePair};
-use crate::domain::text::SourceText;
+use crate::domain::text::{Phrase, SourceText};
 
 pub trait TextRecognizer: Send + Sync {
     fn recognize(&self, fragment: &RgbaImage, languages: &[Language]) -> Result<String>;
@@ -19,12 +19,18 @@ pub struct Translation {
     pub text: String,
     /// Язык перевода.
     pub language: Language,
+    /// Язык оригинала, если переводчик его назвал.
+    pub source: Option<LanguageCode>,
     pub article: DictionaryArticle,
 }
 
 impl Translation {
-    fn new(translated: Translated, language: &Language) -> Self {
-        Self { text: translated.text, language: language.clone(), article: translated.article }
+    fn new(translated: Translated, language: &Language, source: Option<LanguageCode>) -> Self {
+        Self { text: translated.text, language: language.clone(), source, article: translated.article }
+    }
+
+    pub fn phrase(&self) -> Phrase {
+        Phrase { text: self.text.clone(), language: self.language.code().clone() }
     }
 }
 
@@ -32,6 +38,14 @@ impl Translation {
 pub struct Reading {
     pub text: String,
     pub translation: Result<Translation>,
+}
+
+impl Reading {
+    /// Язык оригинала известен только из удавшегося перевода.
+    pub fn original(&self) -> Option<Phrase> {
+        let language = self.translation.as_ref().ok()?.source.clone()?;
+        Some(Phrase { text: SourceText::from_recognized(&self.text).as_str().to_owned(), language })
+    }
 }
 
 /// Читает текст с экрана и переводит его в паре языков пользователя.
@@ -74,7 +88,8 @@ impl TextReading {
     fn read(&self, text: String, pair: &LanguagePair) -> Reading {
         if text.is_empty() {
             let language = pair.native().clone();
-            let translation = Translation { text: String::new(), language, article: DictionaryArticle::default() };
+            let article = DictionaryArticle::default();
+            let translation = Translation { text: String::new(), language, source: None, article };
             return Reading { text, translation: Ok(translation) };
         }
         let translation = self.translate_in_pair(&SourceText::from_recognized(&text), pair);
@@ -93,11 +108,11 @@ impl TextReading {
         let source = Self::clarify_source(translator.as_ref(), text, pair, translated.source.as_ref())?;
         let target = pair.target_for(source.as_ref());
         if target == native && source == detected {
-            return Ok(Translation::new(translated, target));
+            return Ok(Translation::new(translated, target, source));
         }
         let request =
             TranslationRequest { text, source: source.as_ref(), target, likely_source: native, interface: native };
-        Ok(Translation::new(translator.translate(&request)?, target))
+        Ok(Translation::new(translator.translate(&request)?, target, source))
     }
 
     /// Язык отдельного слова переводчик часто путает с похожим, например русский с болгарским.
@@ -226,5 +241,14 @@ mod tests {
         assert_eq!(reading(translator.clone()).translate("version").unwrap(), "ru");
         let requests = translator.requests.lock().unwrap();
         assert_eq!(*requests, ["auto->ru likely ru", "auto->ru likely en", "en->ru likely ru"]);
+    }
+
+    #[test]
+    fn names_language_of_original() {
+        let translator = HintSensitiveTranslator::new("en", "en");
+
+        let original = reading(translator).read_text("version").unwrap().original();
+        let expected = Phrase { text: "version".to_owned(), language: LanguageCode::parse("en").unwrap() };
+        assert_eq!(original, Some(expected));
     }
 }

@@ -3,9 +3,10 @@ use std::sync::Arc;
 
 use gtk::{gdk, gio, glib, pango};
 
-use crate::application::reading::{Reading, Translation};
-use crate::application::speech::TranslationSpeech;
+use crate::application::reading::Reading;
+use crate::application::speech::ReadingSpeech;
 use crate::domain::dictionary::{Definition, DictionaryArticle, Meaning};
+use crate::domain::text::Phrase;
 
 /// Прямоугольник на экране, рядом с которым встаёт карточка.
 #[derive(Clone, Copy, Debug)]
@@ -38,7 +39,7 @@ impl Anchor {
 /// Карточка с распознанным текстом, переводом и словарной статьёй.
 pub struct ReadingCard {
     card: gtk::ScrolledWindow,
-    speech: Arc<TranslationSpeech>,
+    speech: Arc<ReadingSpeech>,
 }
 
 impl ReadingCard {
@@ -50,7 +51,7 @@ impl ReadingCard {
     const SYNONYMS: usize = 6;
     const EXAMPLES: usize = 3;
 
-    pub fn new(speech: Arc<TranslationSpeech>) -> Self {
+    pub fn new(speech: Arc<ReadingSpeech>) -> Self {
         let card = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
             .propagate_natural_height(true)
@@ -85,10 +86,12 @@ impl ReadingCard {
         let content = gtk::Box::new(gtk::Orientation::Vertical, 10);
         let article = reading.translation.as_ref().ok().map(|translation| &translation.article);
         let transcription = article.and_then(|article| article.transcription.as_deref());
-        content.append(&Self::original_view(&reading.text, transcription));
+        let original = Self::original_label(&reading.text, transcription);
+        content.append(&self.spoken_view(&original, reading.original(), "Озвучить оригинал"));
         match &reading.translation {
             Ok(translation) => {
-                content.append(&self.translation_view(translation));
+                let translated = Self::label(&translation.text, &["lexpeek-translation"]);
+                content.append(&self.spoken_view(&translated, Some(translation.phrase()), "Озвучить перевод"));
                 Self::append_article(&content, &translation.article);
             }
             Err(error) => content.append(&Self::label(&format!("Не удалось перевести: {error:#}"), &[])),
@@ -124,34 +127,39 @@ impl ReadingCard {
         self.card.vadjustment().set_value(0.0);
     }
 
-    fn translation_view(&self, translation: &Translation) -> gtk::Box {
+    /// Текст с кнопкой озвучки, если есть что произнести.
+    fn spoken_view(&self, text: &gtk::Label, phrase: Option<Phrase>, tooltip: &'static str) -> gtk::Box {
         let view = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let text = Self::label(&translation.text, &["lexpeek-translation"]);
         text.set_hexpand(true);
-        view.append(&text);
-        let speak = gtk::Button::builder()
+        view.append(text);
+        if let Some(phrase) = phrase {
+            view.append(&self.speak_button(phrase, tooltip));
+        }
+        view
+    }
+
+    fn speak_button(&self, phrase: Phrase, tooltip: &'static str) -> gtk::Button {
+        let button = gtk::Button::builder()
             .icon_name("audio-volume-high-symbolic")
-            .tooltip_text("Озвучить перевод")
+            .tooltip_text(tooltip)
             .valign(gtk::Align::Start)
             .css_classes(["flat"])
             .build();
         let speech = Arc::clone(&self.speech);
-        let translation = translation.clone();
-        speak.connect_clicked(move |button| Self::speak(button, Arc::clone(&speech), translation.clone()));
-        view.append(&speak);
-        view
+        button.connect_clicked(move |button| Self::speak(button, Arc::clone(&speech), phrase.clone(), tooltip));
+        button
     }
 
-    fn speak(button: &gtk::Button, speech: Arc<TranslationSpeech>, translation: Translation) {
+    fn speak(button: &gtk::Button, speech: Arc<ReadingSpeech>, phrase: Phrase, tooltip: &'static str) {
         button.set_sensitive(false);
         glib::spawn_future_local(glib::clone!(
             #[weak]
             button,
             async move {
-                let spoken = gio::spawn_blocking(move || speech.speak(&translation)).await;
+                let spoken = gio::spawn_blocking(move || speech.speak(&phrase)).await;
                 button.set_sensitive(true);
                 let error = match spoken {
-                    Ok(Ok(())) => return button.set_tooltip_text(Some("Озвучить перевод")),
+                    Ok(Ok(())) => return button.set_tooltip_text(Some(tooltip)),
                     Ok(Err(error)) => format!("{error:#}"),
                     Err(_) => "speech crashed".to_owned(),
                 };
@@ -160,7 +168,7 @@ impl ReadingCard {
         ));
     }
 
-    fn original_view(text: &str, transcription: Option<&str>) -> gtk::Label {
+    fn original_label(text: &str, transcription: Option<&str>) -> gtk::Label {
         let mut markup = format!("<i>{}</i>", glib::markup_escape_text(text));
         if let Some(transcription) = transcription {
             markup.push_str(&format!("  <span alpha=\"70%\">[{}]</span>", glib::markup_escape_text(transcription)));

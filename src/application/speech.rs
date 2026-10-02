@@ -2,25 +2,24 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use crate::application::reading::Translation;
-use crate::domain::language::Language;
+use crate::domain::text::Phrase;
 
 pub trait Speaker: Send + Sync {
-    /// Произносит текст и возвращается, когда он прозвучал.
-    fn speak(&self, text: &str, language: &Language) -> Result<()>;
+    /// Произносит фразу и возвращается, когда она прозвучала.
+    fn speak(&self, phrase: &Phrase) -> Result<()>;
 }
 
-/// Озвучивание перевода.
-pub struct TranslationSpeech {
+/// Озвучивание оригинала и перевода.
+pub struct ReadingSpeech {
     speaker: Arc<dyn Speaker>,
 }
 
-impl TranslationSpeech {
+impl ReadingSpeech {
     pub fn new(speaker: Arc<dyn Speaker>) -> Self {
         Self { speaker }
     }
 
-    pub fn speak(&self, translation: &Translation) -> Result<()> {
-        self.speaker.speak(&translation.text, &translation.language)
+    pub fn speak(&self, phrase: &Phrase) -> Result<()> {
+        self.speaker.speak(phrase)
     }
 }

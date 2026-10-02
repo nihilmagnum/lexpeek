@@ -13,7 +13,7 @@ use directories::{BaseDirs, ProjectDirs};
 use crate::application::languages::LanguagesService;
 use crate::application::reading::TextReading;
 use crate::application::selection::SelectionTranslation;
-use crate::application::speech::TranslationSpeech;
+use crate::application::speech::ReadingSpeech;
 use crate::application::translators::{Translator, Translators};
 use crate::infrastructure::autostart::DesktopEntryAutostart;
 use crate::infrastructure::google::GoogleTranslator;
@@ -78,7 +78,7 @@ fn features(directories: &ProjectDirs) -> Result<Features> {
         languages,
         translators,
         selection: Arc::new(selection),
-        speech: Arc::new(TranslationSpeech::new(Arc::new(GoogleSpeaker::new()))),
+        speech: Arc::new(ReadingSpeech::new(Arc::new(GoogleSpeaker::new()))),
         screen: Arc::new(PortalScreenCapture),
         shortcuts: Arc::new(PortalShortcuts::new(App::ID)),
         autostart: Arc::new(autostart()?),
