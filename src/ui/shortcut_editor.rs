@@ -6,20 +6,20 @@ use gtk::{gdk, gio, glib};
 
 use crate::application::desktop::{GlobalShortcuts, ShortcutSpec};
 
-/// Нажатие в окне редактора.
+/// Key press in the editor window.
 struct PressedKeys {
     key: gdk::Key,
     keycode: u32,
     state: gdk::ModifierType,
 }
 
-/// Окно, в котором нажимают новое сочетание для действия.
+/// Window where a new shortcut for an action is pressed.
 pub struct ShortcutEditor;
 
 impl ShortcutEditor {
     const LAYOUT_GROUPS: i32 = 4;
 
-    /// `on_saved` вызывается, когда GNOME принял новое сочетание.
+    /// `on_saved` is called when GNOME has accepted the new shortcut.
     pub fn show(
         app: &gtk::Application,
         shortcuts: Arc<dyn GlobalShortcuts>,
@@ -112,7 +112,7 @@ impl ShortcutEditor {
         glib::Propagation::Stop
     }
 
-    /// Клавиша в латинской раскладке: сочетание, записанное в русской, срабатывало бы только в ней.
+    /// Key in the Latin layout: a shortcut recorded in the Russian layout would work only in it.
     fn latin_key(window: &gtk::ApplicationWindow, keycode: u32, pressed: gdk::Key) -> gdk::Key {
         let display = WidgetExt::display(window);
         (0..Self::LAYOUT_GROUPS)

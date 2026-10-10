@@ -8,50 +8,50 @@ use crate::domain::text::SourceText;
 
 pub struct TranslationRequest<'a> {
     pub text: &'a SourceText,
-    /// Язык оригинала; без него переводчик определяет язык сам.
+    /// Language of the original; without it the translator detects the language itself.
     pub source: Option<&'a LanguageCode>,
     pub target: &'a Language,
-    /// Самый вероятный язык текста: помогает определить язык короткого текста.
+    /// Most likely language of the text: helps to detect the language of a short text.
     pub likely_source: &'a Language,
-    /// Язык, на котором подписаны части речи и другие пояснения словарной статьи.
+    /// Language of the part-of-speech labels and other notes in the dictionary article.
     pub interface: &'a Language,
 }
 
-/// Язык оригинала, как его определил переводчик.
+/// Language of the original as detected by the translator.
 #[derive(Clone, Debug, PartialEq)]
 pub struct DetectedLanguage {
     pub code: LanguageCode,
-    /// Уверенность от 0 до 1, если переводчик её сообщает.
+    /// Confidence from 0 to 1, if the translator reports it.
     pub confidence: Option<f64>,
 }
 
 pub struct Translated {
     pub text: String,
     pub source: Option<DetectedLanguage>,
-    /// Бывает только у слов и коротких выражений.
+    /// Present only for words and short phrases.
     pub article: DictionaryArticle,
 }
 
 pub trait Translator: Send + Sync {
-    /// Постоянный идентификатор, под которым выбор переводчика хранится в настройках.
+    /// Stable identifier under which the choice of translator is stored in the settings.
     fn id(&self) -> &'static str;
     fn name(&self) -> &'static str;
     fn translate(&self, request: &TranslationRequest) -> Result<Translated>;
 }
 
 pub trait TranslatorSettings: Send + Sync {
-    /// Идентификатор выбранного переводчика, если пользователь его выбирал.
+    /// Identifier of the chosen translator, if the user has chosen one.
     fn translator(&self) -> Result<Option<String>>;
     fn set_translator(&self, id: &str) -> Result<()>;
 }
 
-/// Переводчик в списке выбора.
+/// Translator in the choice list.
 pub struct TranslatorOption {
     pub id: &'static str,
     pub name: &'static str,
 }
 
-/// Доступные переводчики и выбранный пользователем.
+/// Available translators and the one chosen by the user.
 pub struct Translators {
     available: Vec<Arc<dyn Translator>>,
     settings: Arc<dyn TranslatorSettings>,
@@ -69,7 +69,7 @@ impl Translators {
             .collect()
     }
 
-    /// Пока пользователь не выбрал переводчик или выбранного больше нет, работает первый в списке.
+    /// Until the user chooses a translator, or if the chosen one is gone, the first in the list is used.
     pub fn selected(&self) -> Result<Arc<dyn Translator>> {
         let chosen = self.settings.translator()?;
         let selected = chosen.and_then(|id| self.available.iter().find(|translator| translator.id() == id));

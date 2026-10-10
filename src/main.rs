@@ -28,11 +28,11 @@ use crate::infrastructure::wl_clipboard::WlClipboard;
 use crate::infrastructure::yandex::YandexTranslator;
 use crate::ui::app::{App, Features};
 
-/// Перевод текста с экрана: выделите область или текст, и lexpeek покажет перевод.
+/// Translate text on the screen: select an area or text, and lexpeek shows the translation.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
-    /// Не открывать кадр, если lexpeek уже запущен (для автозапуска)
+    /// Do not open the frame if lexpeek is already running (for autostart)
     #[arg(long)]
     background: bool,
 }

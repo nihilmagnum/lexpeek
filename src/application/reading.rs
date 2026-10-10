@@ -13,13 +13,13 @@ pub trait TextRecognizer: Send + Sync {
     fn recognize(&self, fragment: &RgbaImage, languages: &[Language]) -> Result<String>;
 }
 
-/// Перевод текста вместе со словарной статьёй.
+/// Translation of a text together with its dictionary article.
 #[derive(Clone)]
 pub struct Translation {
     pub text: String,
-    /// Язык перевода.
+    /// Language of the translation.
     pub language: Language,
-    /// Язык оригинала, если переводчик его назвал.
+    /// Language of the original, if the translator named it.
     pub source: Option<LanguageCode>,
     pub article: DictionaryArticle,
 }
@@ -34,21 +34,21 @@ impl Translation {
     }
 }
 
-/// Распознанный или выделенный текст и его перевод.
+/// Recognized or selected text and its translation.
 pub struct Reading {
     pub text: String,
     pub translation: Result<Translation>,
 }
 
 impl Reading {
-    /// Язык оригинала известен только из удавшегося перевода.
+    /// The language of the original is known only from a successful translation.
     pub fn original(&self) -> Option<Phrase> {
         let language = self.translation.as_ref().ok()?.source.clone()?;
         Some(Phrase { text: SourceText::from_recognized(&self.text).as_str().to_owned(), language })
     }
 }
 
-/// Читает текст с экрана и переводит его в паре языков пользователя.
+/// Reads text from the screen and translates it within the user's language pair.
 pub struct TextReading {
     language_setups: Arc<dyn LanguageSetupRepository>,
     recognizer: Arc<dyn TextRecognizer>,
@@ -56,7 +56,7 @@ pub struct TextReading {
 }
 
 impl TextReading {
-    /// Ниже этой уверенности язык текста уточняется по второму языку пары.
+    /// Below this confidence the language of the text is clarified with the foreign language as a hint.
     const CONFIDENT_DETECTION: f64 = 0.9;
 
     pub fn new(
@@ -67,7 +67,7 @@ impl TextReading {
         Self { language_setups, recognizer, translators }
     }
 
-    /// Распознаёт текст на фрагменте снимка экрана и переводит его.
+    /// Recognizes text in a fragment of a screenshot and translates it.
     pub fn read_fragment(&self, fragment: &RgbaImage) -> Result<Reading> {
         let pair = self.language_setups.load()?.pair().clone();
         let text = self.recognizer.recognize(fragment, &pair.languages())?;
@@ -79,7 +79,7 @@ impl TextReading {
         Ok(self.read(text.trim().to_owned(), &pair))
     }
 
-    /// Только текст перевода, без словарной статьи.
+    /// Only the translated text, without the dictionary article.
     pub fn translate(&self, text: &str) -> Result<String> {
         let pair = self.language_setups.load()?.pair().clone();
         Ok(self.translate_in_pair(&SourceText::from_recognized(text), &pair)?.text)
@@ -96,8 +96,8 @@ impl TextReading {
         Reading { text, translation }
     }
 
-    /// Язык оригинала становится известен только после первого перевода, поэтому текст на своём
-    /// языке или с уточнённым языком переводится повторно.
+    /// The language of the original becomes known only after the first translation, so text in the native
+    /// language or with a clarified language is translated again.
     fn translate_in_pair(&self, text: &SourceText, pair: &LanguagePair) -> Result<Translation> {
         let translator = self.translators.selected()?;
         let native = pair.native();
@@ -115,8 +115,8 @@ impl TextReading {
         Ok(Translation::new(translator.translate(&request)?, target, source))
     }
 
-    /// Язык отдельного слова переводчик часто путает с похожим, например русский с болгарским.
-    /// Если он не уверен и назвал язык вне пары, переспрашивает, считая вероятным второй язык.
+    /// Translators often confuse the language of a single word with a similar one, such as Russian with Bulgarian.
+    /// If unsure and the language is outside the pair, asks again with the foreign language as the likely one.
     fn clarify_source(
         translator: &dyn Translator,
         text: &SourceText,
@@ -170,8 +170,8 @@ mod tests {
         }
     }
 
-    /// Переводчик, который узнаёт `language` только с подсказкой `recognized_with`, а иначе
-    /// принимает его за болгарский. Переводом служит код целевого языка.
+    /// Translator that recognizes `language` only with the `recognized_with` hint and otherwise
+    /// takes it for Bulgarian. The translation is the code of the target language.
     struct HintSensitiveTranslator {
         language: &'static str,
         recognized_with: &'static str,

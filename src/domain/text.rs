@@ -1,18 +1,18 @@
 use crate::domain::language::LanguageCode;
 
-/// Текст на известном языке.
+/// Text in a known language.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Phrase {
     pub text: String,
     pub language: LanguageCode,
 }
 
-/// Текст для перевода.
+/// Text to translate.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SourceText(String);
 
 impl SourceText {
-    /// Строки, на которые текст разбит на экране, собираются обратно в абзацы.
+    /// Lines the text is broken into on the screen are joined back into paragraphs.
     pub fn from_recognized(recognized: &str) -> Self {
         let unwrapped = recognized.replace("-\n", "");
         let paragraphs: Vec<String> = unwrapped

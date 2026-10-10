@@ -19,7 +19,7 @@ pub enum LanguageError {
     ChosenForTranslation(LanguageCode),
 }
 
-/// Код языка ISO 639-1, например `ru`.
+/// ISO 639-1 language code, for example `ru`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LanguageCode(Cow<'static, str>);
 
@@ -28,7 +28,7 @@ impl LanguageCode {
         Self(Cow::Borrowed(code))
     }
 
-    /// Допускает уточнение варианта языка через дефис, например `zh-tw`.
+    /// Allows a language variant after a hyphen, for example `zh-tw`.
     pub fn parse(code: &str) -> Result<Self, LanguageError> {
         let code = code.trim().to_lowercase();
         let valid = (2..=8).contains(&code.len()) && code.chars().all(|c| c.is_ascii_lowercase() || c == '-');
@@ -60,7 +60,7 @@ impl Language {
         Self { code: LanguageCode::built_in(code), name: Cow::Borrowed(name) }
     }
 
-    /// Язык, добавленный пользователем.
+    /// Language added by the user.
     pub fn custom(code: LanguageCode, name: &str) -> Result<Self, LanguageError> {
         let name = name.trim();
         if name.is_empty() {
@@ -94,7 +94,7 @@ static BUILT_IN_LANGUAGES: [Language; 13] = [
     Language::built_in("ko", "Корейский"),
 ];
 
-/// Встроенные языки и добавленные пользователем.
+/// Built-in languages and those added by the user.
 #[derive(Clone, Debug, Default)]
 pub struct LanguageCatalog {
     custom: Vec<Language>,
@@ -130,7 +130,7 @@ impl LanguageCatalog {
     }
 }
 
-/// Пара языков пользователя: свой язык и второй.
+/// The user's language pair: native and foreign.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LanguagePair {
     native: Language,
@@ -153,7 +153,7 @@ impl LanguagePair {
         &self.foreign
     }
 
-    /// Текст на своём языке переводится на второй, на любом другом на свой.
+    /// Text in the native language is translated into the foreign one, text in any other language into the native one.
     pub fn target_for(&self, source: Option<&LanguageCode>) -> &Language {
         if source == Some(&self.native.code) { &self.foreign } else { &self.native }
     }
@@ -177,7 +177,7 @@ impl Default for LanguagePair {
     }
 }
 
-/// Языки пользователя: каталог и выбранная в нём пара.
+/// The user's languages: the catalog and the pair chosen from it.
 #[derive(Clone, Debug, Default)]
 pub struct LanguageSetup {
     catalog: LanguageCatalog,
@@ -185,7 +185,7 @@ pub struct LanguageSetup {
 }
 
 impl LanguageSetup {
-    /// Пара, языка которой больше нет в каталоге, сбрасывается на пару по умолчанию.
+    /// A pair whose language is no longer in the catalog is reset to the default pair.
     pub fn restore(
         custom: Vec<Language>,
         native: Option<LanguageCode>,
@@ -222,7 +222,7 @@ impl LanguageSetup {
         self.catalog.add(language)
     }
 
-    /// Язык из пары удалить нельзя; встроенный остаётся в каталоге.
+    /// A language of the pair cannot be removed; a built-in one stays in the catalog.
     pub fn remove(&mut self, language: &Language) -> Result<(), LanguageError> {
         if self.pair.contains(language) {
             return Err(LanguageError::ChosenForTranslation(language.code.clone()));
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn keeps_languages_of_the_pair() {
         let mut setup = LanguageSetup::default();
-        let georgian = Language::custom(code("ka"), "Грузинский").unwrap();
+        let georgian = Language::custom(code("ka"), "Georgian").unwrap();
         setup.add(georgian.clone()).unwrap();
         setup.choose(&code("ru"), &code("ka")).unwrap();
 

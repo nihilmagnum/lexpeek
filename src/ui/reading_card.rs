@@ -8,7 +8,7 @@ use crate::application::speech::ReadingSpeech;
 use crate::domain::dictionary::{Definition, DictionaryArticle, Meaning};
 use crate::domain::text::Phrase;
 
-/// Прямоугольник на экране, рядом с которым встаёт карточка.
+/// Rectangle on the screen next to which the card is placed.
 #[derive(Clone, Copy, Debug)]
 pub struct Anchor {
     pub x: f64,
@@ -36,7 +36,7 @@ impl Anchor {
     }
 }
 
-/// Карточка с распознанным текстом, переводом и словарной статьёй.
+/// Card with the recognized text, its translation and the dictionary article.
 pub struct ReadingCard {
     card: gtk::ScrolledWindow,
     speech: Arc<ReadingSpeech>,
@@ -99,7 +99,7 @@ impl ReadingCard {
         self.show(&content);
     }
 
-    /// Место карточки в `layers`: под якорем, если там хватает места, иначе над ним.
+    /// Position of the card in `layers`: below the anchor if there is room, otherwise above it.
     pub fn position(&self, layers: &gtk::Overlay, widget: &gtk::Widget, anchor: Anchor) -> Option<gdk::Rectangle> {
         if widget != self.card.upcast_ref::<gtk::Widget>() {
             return None;
@@ -127,7 +127,7 @@ impl ReadingCard {
         self.card.vadjustment().set_value(0.0);
     }
 
-    /// Текст с кнопкой озвучки, если есть что произнести.
+    /// Text with a speech button, if there is something to speak.
     fn spoken_view(&self, text: &gtk::Label, phrase: Option<Phrase>, tooltip: &'static str) -> gtk::Box {
         let view = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         text.set_hexpand(true);

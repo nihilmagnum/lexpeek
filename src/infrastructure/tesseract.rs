@@ -11,14 +11,14 @@ use crate::application::languages::OcrModelStore;
 use crate::application::reading::TextRecognizer;
 use crate::domain::language::Language;
 
-/// Распознавание текста движком Tesseract.
+/// Text recognition with the Tesseract engine.
 pub struct TesseractRecognizer {
     models: TesseractModels,
 }
 
 impl TesseractRecognizer {
-    /// Экранный шрифт мельче, чем рассчитан Tesseract, поэтому фрагмент растягивается
-    /// примерно до этой ширины.
+    /// Screen fonts are smaller than Tesseract is designed for, so the fragment is scaled up
+    /// to roughly this width.
     const TARGET_WIDTH: u32 = 1200;
     const MAX_UPSCALE: u32 = 4;
 
@@ -26,7 +26,7 @@ impl TesseractRecognizer {
         Self { models }
     }
 
-    /// Серое изображение с тёмным текстом на светлом фоне, увеличенное для распознавания.
+    /// Grayscale image with dark text on a light background, enlarged for recognition.
     fn prepare(fragment: &RgbaImage) -> GrayImage {
         let mut gray = imageops::grayscale(fragment);
         let pixels = u64::from(gray.width()) * u64::from(gray.height());
@@ -60,7 +60,7 @@ impl TextRecognizer for TesseractRecognizer {
     }
 }
 
-/// Модели распознавания Tesseract в каталоге lexpeek.
+/// Tesseract recognition models in the lexpeek directory.
 #[derive(Clone)]
 pub struct TesseractModels {
     directory: PathBuf,
@@ -77,7 +77,7 @@ impl TesseractModels {
         &self.directory
     }
 
-    /// Имя модели Tesseract для языка; модель добавленного пользователем языка названа его кодом.
+    /// Tesseract model name for a language; the model of a user-added language is named by its code.
     pub fn model_name(language: &Language) -> &str {
         match language.code().as_str() {
             "ru" => "rus",
@@ -100,7 +100,7 @@ impl TesseractModels {
     fn install(&self, language: &Language, model: &[u8]) -> Result<()> {
         fs::create_dir_all(&self.directory).with_context(|| format!("cannot create {}", self.directory.display()))?;
         let path = self.path(language);
-        // Недописанный файл не должен выглядеть установленной моделью.
+        // A partially written file must not look like an installed model.
         let partial = path.with_extension("part");
         fs::write(&partial, model).with_context(|| format!("cannot write {}", partial.display()))?;
         fs::rename(&partial, &path).with_context(|| format!("cannot write {}", path.display()))
@@ -155,7 +155,7 @@ mod tests {
         let file = directory.path().join("any-name.traineddata");
         fs::write(&file, b"model").unwrap();
         let models = TesseractModels::new(directory.path().join("tessdata"));
-        let georgian = Language::custom(LanguageCode::parse("ka").unwrap(), "Грузинский").unwrap();
+        let georgian = Language::custom(LanguageCode::parse("ka").unwrap(), "Georgian").unwrap();
 
         models.install_from_file(&georgian, &file).unwrap();
         assert!(models.is_installed(&georgian));

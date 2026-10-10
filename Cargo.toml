@@ -33,7 +33,7 @@ section = "utils"
 extended-description = """\
 Translates text on the screen: select an area or text in any window, press a shortcut \
 and get the translation with a dictionary article and speech."""
-# $auto находит библиотеки, с которыми слинкован бинарник; wl-clipboard и плагины GStreamer он найти не может.
+# $auto finds the libraries the binary links against; it cannot find wl-clipboard and the GStreamer plugins.
 depends = "$auto, wl-clipboard, gstreamer1.0-plugins-good"
 assets = [
     ["target/release/lexpeek", "usr/bin/", "755"],

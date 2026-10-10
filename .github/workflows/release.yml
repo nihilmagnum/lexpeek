@@ -10,7 +10,7 @@ permissions:
 jobs:
   deb:
     runs-on: ubuntu-latest
-    # Пакет собирается против библиотек конкретного выпуска Ubuntu, поэтому сборка идёт в нём.
+    # The package is built against the libraries of a specific Ubuntu release, so the build runs inside it.
     container: ubuntu:26.04
     steps:
       - name: Install build dependencies

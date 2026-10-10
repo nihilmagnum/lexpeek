@@ -10,17 +10,17 @@ use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
 use crate::ui::reading_card::ReadingCard;
 
-/// Небольшое окно с переводом выделенного текста.
+/// Small window with the translation of the selected text.
 pub struct SelectionPopup {
     window: gtk::ApplicationWindow,
     card: ReadingCard,
-    /// Окно закрывается, когда фокус уходит, но только после того, как оно его получило.
+    /// The window closes when it loses focus, but only after it has received focus.
     was_active: Cell<bool>,
 }
 
 impl SelectionPopup {
-    /// Выделение читается до того, как окно появится: чтение на мгновение забирает фокус,
-    /// а окно закрывается, когда его теряет.
+    /// The selection is read before the window appears: reading takes focus for a moment,
+    /// and the window closes when it loses focus.
     pub fn show(
         app: &gtk::Application,
         selection: Arc<SelectionTranslation>,
@@ -71,7 +71,7 @@ impl SelectionPopup {
             move |window| popup.focus_changed(window.is_active())
         ));
         popup.connect_escape();
-        // Обработчики держат окно слабой ссылкой, живёт оно столько же, сколько окно GTK.
+        // Handlers hold the window weakly; it lives as long as the GTK window.
         window.connect_destroy(glib::clone!(
             #[strong]
             popup,

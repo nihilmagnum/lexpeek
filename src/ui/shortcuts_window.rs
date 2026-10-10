@@ -8,7 +8,7 @@ use crate::application::desktop::{GlobalShortcuts, ShortcutSpec};
 use crate::ui::action::Action;
 use crate::ui::shortcut_editor::ShortcutEditor;
 
-/// Окно со списком действий и их горячих клавиш.
+/// Window with the list of actions and their shortcuts.
 pub struct ShortcutsWindow {
     app: gtk::Application,
     body: gtk::Box,
@@ -34,7 +34,7 @@ impl ShortcutsWindow {
 
         let shortcuts_window = Rc::new(Self { app: app.clone(), body, shortcuts });
         shortcuts_window.refresh();
-        // Обработчики держат окно слабой ссылкой, живёт оно столько же, сколько окно GTK.
+        // Handlers hold the window weakly; it lives as long as the GTK window.
         window.connect_destroy(move |_| {
             let _ = &shortcuts_window;
         });

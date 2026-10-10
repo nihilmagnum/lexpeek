@@ -7,7 +7,7 @@ use ksni::menu::{CheckmarkItem, StandardItem};
 use crate::application::desktop::LoginAutostart;
 use crate::ui::action::Action;
 
-/// Значок lexpeek в области индикаторов верхней панели.
+/// lexpeek icon in the indicator area of the top bar.
 pub struct TrayIcon {
     icon_name: String,
     autostart: Arc<dyn LoginAutostart>,
@@ -20,7 +20,7 @@ impl TrayIcon {
     }
 
     fn send(&self, action: Action) {
-        // Канал закрыт, только когда приложение уже завершается.
+        // The channel is closed only when the application is already quitting.
         let _ = self.actions.try_send(action);
     }
 

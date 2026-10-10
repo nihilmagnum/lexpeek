@@ -9,7 +9,7 @@ use crate::application::languages::{LanguageStatus, LanguagesError, LanguagesSer
 use crate::application::translators::Translators;
 use crate::domain::language::{Language, LanguageCode, LanguageError};
 
-/// Окно настроек: переводчик, пара языков и модели распознавания.
+/// Settings window: translator, language pair and recognition models.
 pub struct SettingsWindow {
     window: gtk::ApplicationWindow,
     body: gtk::Box,
@@ -37,7 +37,7 @@ impl SettingsWindow {
 
         let settings_window = Rc::new(Self { window: window.clone(), body, languages, translators });
         settings_window.refresh();
-        // Обработчики держат окно слабой ссылкой, живёт оно столько же, сколько окно GTK.
+        // Handlers hold the window weakly; it lives as long as the GTK window.
         window.connect_destroy(move |_| {
             let _ = &settings_window;
         });
@@ -139,7 +139,7 @@ impl SettingsWindow {
             status.set_label(&Self::describe(&error));
             return;
         }
-        // Окно перестраивается после выхода из обработчика, чтобы не удалять список, который его вызвал.
+        // The window is rebuilt after the handler returns, so as not to remove the list that called it.
         glib::idle_add_local_once(glib::clone!(
             #[weak(rename_to = window)]
             self,
@@ -233,7 +233,7 @@ impl SettingsWindow {
         ));
     }
 
-    /// Спрашивает название и код языка для выбранной модели.
+    /// Asks for the name and code of the language of the chosen model.
     fn describe_language(self: &Rc<Self>, file: PathBuf, status: &gtk::Label) {
         let stem = file.file_stem().unwrap_or_default().to_string_lossy().into_owned();
         let name = gtk::Entry::builder().placeholder_text("Грузинский").hexpand(true).build();
@@ -304,7 +304,7 @@ impl SettingsWindow {
         choice
     }
 
-    /// Понятное пользователю объяснение ошибки; неожиданные ошибки показываются как есть.
+    /// User-friendly explanation of an error; unexpected errors are shown as is.
     fn describe(error: &anyhow::Error) -> String {
         if let Some(error) = error.downcast_ref::<LanguageError>() {
             return match error {

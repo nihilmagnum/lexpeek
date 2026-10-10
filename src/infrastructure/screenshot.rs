@@ -8,7 +8,7 @@ use image::RgbaImage;
 
 use crate::application::desktop::ScreenCapture;
 
-/// Снимок экрана через xdg-desktop-portal.
+/// Screenshot through xdg-desktop-portal.
 pub struct PortalScreenCapture;
 
 impl PortalScreenCapture {
@@ -29,7 +29,7 @@ impl ScreenCapture for PortalScreenCapture {
     fn capture(&self) -> Result<RgbaImage> {
         let path = glib::MainContext::new().block_on(Self::saved_screenshot())?;
         let image = image::open(&path);
-        // Портал сохраняет снимок в «Изображения», а нужен он только на время выделения.
+        // The portal saves the screenshot to Pictures, but it is needed only while selecting.
         std::fs::remove_file(&path).with_context(|| format!("cannot remove {}", path.display()))?;
         Ok(image.with_context(|| format!("cannot read {}", path.display()))?.into_rgba8())
     }

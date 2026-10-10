@@ -1,61 +1,61 @@
 # Lexpeek
 
-Перевод текста с экрана для GNOME на Wayland. Выдели мышью область экрана или текст в любом окне, нажми горячую клавишу и получи перевод со словарной статьёй. Работает и там, где текст нельзя скопировать: в играх, на картинках, в видео.
+Screen text translator for GNOME on Wayland. Select an area of the screen or text in any window, press a shortcut and get the translation with a dictionary article. It also works where text cannot be copied: in games, images and videos.
 
-## Возможности
+## Features
 
-- **Перевод области экрана.** Текст распознаётся Tesseract и переводится.
-- **Перевод выделенного текста.** Карточка с переводом, копирование перевода в буфер обмена или замена выделенного текста переводом прямо в поле ввода.
-- **Словарная статья** для слов и коротких выражений: транскрипция, варианты перевода по частям речи, толкования, синонимы, примеры.
-- **Переводчики на выбор:** Google Переводчик и Яндекс Переводчик.
-- **Озвучивание перевода** кнопкой в карточке.
-- **Пара языков с автоопределением:** текст на своём языке переводится на второй, на любом другом на свой.
-- **Языки распознавания:** 13 встроенных, модели скачиваются из приложения. Любой другой язык можно добавить из файла `.traineddata`.
-- Значок в верхней панели, настраиваемые горячие клавиши, автозапуск при входе.
+- **Screen area translation.** Text is recognized by Tesseract and translated.
+- **Selected text translation.** A card with the translation, copying the translation to the clipboard, or replacing the selected text with its translation right in the input field.
+- **Dictionary article** for words and short phrases: transcription, translation variants by part of speech, definitions, synonyms, examples.
+- **Choice of translators:** Google Translate and Yandex Translate.
+- **Speech** for the original and the translation with buttons on the card.
+- **Language pair with auto-detection:** text in your native language is translated into the second one, text in any other language into your native one.
+- **Recognition languages:** 13 built-in ones whose models are downloaded from the app. Any other language can be added from a `.traineddata` file.
+- Icon in the top bar, customizable shortcuts, start at login.
 
-## Установка
+## Installation
 
-Нужны Ubuntu 26.04 или новее, GNOME на Wayland и расширение индикаторов в панели (в Ubuntu включено по умолчанию).
+Requires Ubuntu 26.04 or newer, GNOME on Wayland and the top bar indicator extension (enabled by default in Ubuntu).
 
-Скачай `lexpeek_*.deb` со [страницы релизов](https://github.com/nihilmagnum/lexpeek/releases) и установи:
+Download `lexpeek_*.deb` from the [releases page](https://github.com/nihilmagnum/lexpeek/releases) and install it:
 
 ```sh
 sudo apt install ./lexpeek_*.deb
 ```
 
-Lexpeek появится в списке приложений. При первом запуске GNOME предложит выбрать горячие клавиши, а lexpeek скачает модели распознавания для русского и английского.
+Lexpeek appears in the application list. On first launch GNOME asks you to choose the shortcuts, and lexpeek downloads the recognition models for Russian and English, the default language pair.
 
-## Использование
+## Usage
 
-| Действие | Сочетание по умолчанию |
+| Action | Default shortcut |
 |---|---|
-| Перевести область экрана | `Ctrl+Alt+R` |
-| Перевести выделенный текст | `Ctrl+Alt+W` |
-| Скопировать перевод выделенного | `Ctrl+Alt+C` |
-| Заменить выделенный текст переводом | `Ctrl+Alt+V` |
+| Translate Screen Area | `Ctrl+Alt+R` |
+| Translate Selected Text | `Ctrl+Alt+W` |
+| Copy Translation of Selection | `Ctrl+Alt+C` |
+| Replace Selection with Translation | `Ctrl+Alt+V` |
 
-В режиме области экрана выдели мышью участок с текстом, Esc закрывает кадр. Окно с переводом выделенного закрывается по Esc или при переключении в другое окно. Копирование и замена работают без окон, о сбое сообщает уведомление. Для замены GNOME один раз спросит разрешение на удалённое управление.
+In screen area mode, select the part with text using the mouse; Esc closes the frame. The window with the translation of the selection closes on Esc or when you switch to another window. Copying and replacing work without windows, and a notification reports failures. For replacing, GNOME asks once for remote desktop permission.
 
-Меню значка в панели:
-- **«Настройки…»:** переводчик, пара языков, загрузка и удаление моделей распознавания, добавление языка из файла.
-- **«Горячие клавиши…»:** смена и очистка сочетаний.
-- **«Запускать при входе».**
+Tray icon menu:
+- **Preferences…:** translator, language pair, downloading and removing recognition models, adding a language from a file.
+- **Keyboard Shortcuts…:** changing and clearing shortcuts.
+- **Start at Login.**
 
-## Данные
+## Data
 
-| Что | Где |
+| What | Where |
 |---|---|
-| Настройки: пара языков, свои языки, переводчик | `~/.config/lexpeek/settings.json` |
-| Модели распознавания | `~/.local/share/lexpeek/tessdata` |
-| Разрешение на удалённое управление | `~/.local/share/lexpeek/remote-desktop-token` |
+| Settings: language pair, custom languages, translator | `~/.config/lexpeek/settings.json` |
+| Recognition models | `~/.local/share/lexpeek/tessdata` |
+| Remote desktop permission | `~/.local/share/lexpeek/remote-desktop-token` |
 
-Разрешение на снимки экрана lexpeek записывает себе сам при запуске: фоновому приложению GNOME диалог разрешения не показывает.
+Lexpeek grants itself the screenshot permission at startup: GNOME does not show the permission dialog to background applications.
 
-Снимок экрана не сохраняется: файл, который создаёт портал, удаляется сразу после чтения, а сам снимок хранится в памяти, пока открыт кадр. Переводчику отправляется только текст.
+Screenshots are not kept: the file the portal creates is deleted right after reading, and the screenshot itself stays in memory only while the frame is open. Only text is sent to the translator.
 
-## Сборка из исходников
+## Building from source
 
-Нужны GNOME 48 или новее, Rust 1.88 или новее и пакеты для сборки:
+Requires GNOME 48 or newer, Rust 1.88 or newer and the build packages:
 
 ```sh
 sudo apt install cargo libgtk-4-dev libtesseract-dev libleptonica-dev clang libclang-dev pkg-config \
@@ -65,34 +65,34 @@ cd lexpeek
 ./install.sh
 ```
 
-Скрипт собирает lexpeek, ставит его в `~/.cargo/bin` и добавляет ярлык и иконку в `~/.local/share`.
+The script builds lexpeek, installs it into `~/.cargo/bin` and adds the desktop entry and icon to `~/.local/share`.
 
-Пакет `.deb` собирается командой `cargo deb` (нужен `cargo install cargo-deb`), готовый файл появляется в `target/debian/`. При теге `v*` пакет собирает GitHub Actions и прикладывает его к релизу.
+The `.deb` package is built with `cargo deb` (requires `cargo install cargo-deb`), and the result appears in `target/debian/`. On a `v*` tag GitHub Actions builds the package and attaches it to the release.
 
-## Устройство
+## Architecture
 
 ```
 src/
-  domain/          языки, пара и каталог; текст; словарная статья
-  application/     сценарии (чтение и перевод, языки, выделенный текст, выбор переводчика)
-                   и порты, которые они объявляют, включая порты рабочего стола
-  infrastructure/  Google, Яндекс, Tesseract, настройки, порталы GNOME, wl-clipboard, автозапуск
-  ui/              GTK: приложение, кадр, карточка, окна, значок в панели
-  main.rs          сборка зависимостей
+  domain/          languages, pair and catalog; text; dictionary article
+  application/     use cases (reading and translation, languages, selected text, translator choice)
+                   and the ports they declare, including desktop ports
+  infrastructure/  Google, Yandex, Tesseract, settings, GNOME portals, wl-clipboard, autostart
+  ui/              GTK: application, frame, card, windows, tray icon
+  main.rs          dependency wiring
 ```
 
-Чтобы добавить переводчик, реализуй трейт `Translator` в `src/infrastructure/` и добавь его в список `available` в `src/main.rs`. Выбор в настройках, определение языка и словарная статья подхватятся сами.
+To add a translator, implement the `Translator` trait in `src/infrastructure/` and add it to the `available` list in `src/main.rs`. The choice in the preferences, language detection and the dictionary article are picked up automatically.
 
-Чтобы добавить действие, заведи вариант в `Action` (`src/ui/action.rs`) и его обработку в `App::perform`. Горячая клавиша и пункт меню появятся из перечня действий.
+To add an action, add a variant to `Action` (`src/ui/action.rs`) and handle it in `App::perform`. The shortcut and the menu item come from the list of actions.
 
-Тесты: `cargo test`.
+Tests: `cargo test`.
 
-## Ограничения
+## Limitations
 
-- **Переводчики.** Google и Яндекс работают через неофициальные бесплатные endpoint'ы без ключа. Их владельцы могут ограничить или закрыть доступ.
-- **Смена горячей клавиши.** Она использует внутренний механизм GNOME и может сломаться после его обновления. Сами горячие клавиши при этом продолжат работать.
-- **Словарная статья.** Бывает только у слов и коротких выражений. У Яндекса нет толкований и примеров.
+- **Translators.** Google and Yandex are used through unofficial free endpoints without a key. Their owners may restrict or close access.
+- **Changing a shortcut.** It relies on an internal GNOME mechanism and may break after a GNOME update. The shortcuts themselves keep working.
+- **Dictionary article.** Available only for words and short phrases. Yandex provides no definitions or examples.
 
-## Лицензия
+## License
 
 [MIT](LICENSE)

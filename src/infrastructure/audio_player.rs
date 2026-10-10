@@ -6,12 +6,12 @@ use anyhow::{Context, Result};
 use gtk::prelude::*;
 use gtk::{gio, glib};
 
-/// Проигрывание звука средствами GTK, то есть через GStreamer.
+/// Sound playback with GTK, that is, through GStreamer.
 pub struct GtkAudioPlayer;
 
 impl GtkAudioPlayer {
-    /// Возвращается, когда звук доиграл. Объекты GTK живут только в главном потоке, поэтому
-    /// вызывать из фонового потока: из главного вызов никогда не дождётся конца.
+    /// Returns when the sound has finished. GTK objects live only on the main thread, so call it
+    /// from a background thread: called from the main thread it would never see the end.
     pub fn play(&self, audio: Vec<u8>) -> Result<()> {
         let (finished, result) = mpsc::channel::<Result<()>>();
         glib::MainContext::default().invoke(move || Self::start(audio, finished));
@@ -21,8 +21,8 @@ impl GtkAudioPlayer {
     fn start(audio: Vec<u8>, finished: mpsc::Sender<Result<()>>) {
         let stream = gio::MemoryInputStream::from_bytes(&glib::Bytes::from_owned(audio));
         let media = gtk::MediaFile::for_input_stream(&stream);
-        // Проигрыватель держится здесь, пока звук не доиграет; отпускается он вне обработчика его же
-        // сигнала, иначе уничтожался бы посреди этого сигнала.
+        // The player is held here until the sound finishes; it is released outside the handler of its own
+        // signal, otherwise it would be destroyed in the middle of that signal.
         let playing = Rc::new(RefCell::new(Some(media.clone())));
         media.connect_notify_local(None, move |media, _| {
             let outcome = match media.error() {

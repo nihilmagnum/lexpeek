@@ -19,10 +19,10 @@ pub trait LanguageSetupRepository: Send + Sync {
     fn save(&self, setup: &LanguageSetup) -> Result<()>;
 }
 
-/// Модели распознавания текста по языкам.
+/// Text recognition models per language.
 pub trait OcrModelStore: Send + Sync {
     fn is_installed(&self, language: &Language) -> bool;
-    /// Скачивает модель встроенного языка.
+    /// Downloads the model of a built-in language.
     fn download(&self, language: &Language) -> Result<()>;
     fn install_from_file(&self, language: &Language, file: &Path) -> Result<()>;
     fn remove(&self, language: &Language) -> Result<()>;
@@ -40,7 +40,7 @@ pub struct LanguagesOverview {
     pub languages: Vec<LanguageStatus>,
 }
 
-/// Выбор пары языков и управление моделями распознавания.
+/// Choice of the language pair and management of recognition models.
 pub struct LanguagesService {
     language_setups: Arc<dyn LanguageSetupRepository>,
     models: Arc<dyn OcrModelStore>,
@@ -66,7 +66,7 @@ impl LanguagesService {
         Ok(LanguagesOverview { pair: setup.pair().clone(), languages })
     }
 
-    /// Для пары годятся только языки, которые умеем распознавать.
+    /// Only languages that can be recognized are suitable for the pair.
     pub fn choose(&self, native: &LanguageCode, foreign: &LanguageCode) -> Result<()> {
         let mut setup = self.language_setups.load()?;
         setup.choose(native, foreign)?;
@@ -85,7 +85,7 @@ impl LanguagesService {
         self.models.download(language)
     }
 
-    /// Встроенный язык теряет только модель, добавленный пользователем исчезает из каталога.
+    /// A built-in language loses only its model, a user-added one leaves the catalog.
     pub fn remove(&self, language: &Language) -> Result<()> {
         let mut setup = self.language_setups.load()?;
         setup.remove(language)?;
@@ -95,7 +95,7 @@ impl LanguagesService {
         self.language_setups.save(&setup)
     }
 
-    /// Модель для кода встроенного языка становится его моделью, иначе в каталоге появляется новый язык.
+    /// A model for the code of a built-in language becomes its model, otherwise a new language joins the catalog.
     pub fn add_from_file(&self, file: &Path, code: &LanguageCode, name: &str) -> Result<()> {
         let mut setup = self.language_setups.load()?;
         if let Some(known) = setup.catalog().by_code(code) {
@@ -110,7 +110,7 @@ impl LanguagesService {
         self.language_setups.save(&setup)
     }
 
-    /// Скачивает недостающие модели пары, например при первом запуске.
+    /// Downloads missing models of the pair, for example on first launch.
     pub fn download_pair_models(&self) -> Result<()> {
         for language in self.language_setups.load()?.pair().languages() {
             if LanguageCatalog::is_built_in(&language) && !self.models.is_installed(&language) {
@@ -177,7 +177,7 @@ mod tests {
     fn custom_language_from_file_joins_the_catalog_and_leaves_it_on_removal() {
         let languages = service();
         languages.download_pair_models().unwrap();
-        languages.add_from_file(Path::new("kat.traineddata"), &code("ka"), "Грузинский").unwrap();
+        languages.add_from_file(Path::new("kat.traineddata"), &code("ka"), "Georgian").unwrap();
         languages.choose(&code("ru"), &code("ka")).unwrap();
         let georgian = languages.overview().unwrap().pair.foreign().clone();
 

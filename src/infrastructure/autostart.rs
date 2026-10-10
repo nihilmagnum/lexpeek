@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 
 use crate::application::desktop::LoginAutostart;
 
-/// Автозапуск через ярлык в ~/.config/autostart.
+/// Autostart through a desktop entry in ~/.config/autostart.
 pub struct DesktopEntryAutostart {
     app_id: String,
     entry: PathBuf,

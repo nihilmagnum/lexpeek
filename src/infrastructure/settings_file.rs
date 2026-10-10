@@ -24,7 +24,7 @@ struct StoredSettings {
     translator: Option<String>,
 }
 
-/// Настройки lexpeek в JSON-файле.
+/// lexpeek settings in a JSON file.
 pub struct SettingsFile {
     path: PathBuf,
 }
@@ -101,7 +101,7 @@ mod tests {
         let settings = SettingsFile::new(directory.path().join("settings.json"));
         let mut setup = settings.load().unwrap();
         let georgian = LanguageCode::parse("ka").unwrap();
-        setup.add(Language::custom(georgian.clone(), "Грузинский").unwrap()).unwrap();
+        setup.add(Language::custom(georgian.clone(), "Georgian").unwrap()).unwrap();
         setup.choose(&LanguageCode::parse("ru").unwrap(), &georgian).unwrap();
 
         settings.set_translator("yandex").unwrap();

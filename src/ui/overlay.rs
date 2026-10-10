@@ -11,7 +11,7 @@ use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
 use crate::ui::reading_card::{Anchor, ReadingCard};
 
-/// Замороженный кадр экрана, на котором выделяют текст для перевода.
+/// Frozen frame of the screen on which text is selected for translation.
 pub struct Overlay {
     window: gtk::ApplicationWindow,
     picture: gtk::Picture,
@@ -19,10 +19,10 @@ pub struct Overlay {
     card: ReadingCard,
     screenshot: RgbaImage,
     reading: Arc<TextReading>,
-    /// Снимок монитора, на котором открыт кадр.
+    /// Screenshot of the monitor the frame is open on.
     screen: RefCell<Option<RgbaImage>>,
     selection: Cell<Option<Anchor>>,
-    /// Номер последнего выделения: результат распознавания старого выделения не показывается.
+    /// Number of the latest selection: the recognition result of an older selection is not shown.
     generation: Cell<u64>,
 }
 
@@ -85,7 +85,7 @@ impl Overlay {
             }
         ));
         overlay.connect_input();
-        // Остальные обработчики держат оверлей слабой ссылкой, живёт он столько же, сколько окно.
+        // Other handlers hold the overlay weakly; it lives as long as the window.
         window.connect_destroy(move |_| {
             let _ = &overlay;
         });
@@ -130,7 +130,7 @@ impl Overlay {
         self.canvas.add_controller(drag);
     }
 
-    /// Портал снимает все мониторы разом, а окно занимает один из них.
+    /// The portal captures all monitors at once, while the window occupies one of them.
     fn show_monitor(&self, current: &gdk::Monitor) {
         let display = WidgetExt::display(&self.window);
         let monitors: Vec<gdk::Monitor> = display.monitors().iter::<gdk::Monitor>().filter_map(Result::ok).collect();
@@ -192,7 +192,7 @@ impl Overlay {
         });
     }
 
-    /// Участок снимка под выделением в пикселях снимка.
+    /// Part of the screenshot under the selection, in screenshot pixels.
     fn fragment(&self, area: Anchor) -> Option<RgbaImage> {
         let screen = self.screen.borrow();
         let screen = screen.as_ref()?;

@@ -4,22 +4,22 @@ use anyhow::{Context, Result};
 use gtk::prelude::*;
 use gtk::{gio, glib};
 
-/// Доступ приложения к xdg-desktop-portal.
+/// Application access to xdg-desktop-portal.
 pub struct PortalAccess;
 
 impl PortalAccess {
     const PERMISSION_STORE: &str = "org.freedesktop.impl.portal.PermissionStore";
     const PERMISSION_STORE_PATH: &str = "/org/freedesktop/impl/portal/PermissionStore";
 
-    /// Портал запоминает приложение при первом обращении, поэтому регистрация идёт раньше
-    /// снимков экрана и горячих клавиш.
+    /// The portal remembers the application on first contact, so registration comes before
+    /// screenshots and shortcuts.
     pub fn register(app_id: &str) -> Result<()> {
         glib::MainContext::default().block_on(async { ashpd::register_host_app(app_id.try_into()?).await })?;
         Ok(())
     }
 
-    /// Фоновому приложению GNOME не показывает диалог разрешения снимков экрана, поэтому
-    /// разрешение записывается заранее, если его ещё нет.
+    /// GNOME does not show the screenshot permission dialog to a background application, so
+    /// the permission is written in advance if it is not there yet.
     pub fn allow_screenshots(app_id: &str) -> Result<()> {
         let bus = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE)
             .context("session bus is unavailable")?;

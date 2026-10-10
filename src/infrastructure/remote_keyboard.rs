@@ -9,14 +9,14 @@ use gtk::glib;
 
 use crate::application::selection::PasteKeystroke;
 
-/// Нажатия клавиш в активном окне через портал удалённого управления GNOME.
+/// Keystrokes in the active window through the GNOME remote desktop portal.
 pub struct RemoteKeyboard {
-    /// Токен, по которому GNOME восстанавливает разрешение без повторного вопроса.
+    /// Token GNOME uses to restore the permission without asking again.
     restore_token: PathBuf,
 }
 
 impl RemoteKeyboard {
-    /// Коды evdev, а не символы: так вставка не зависит от раскладки.
+    /// evdev codes rather than characters, so pasting does not depend on the keyboard layout.
     const LEFT_CTRL: i32 = 29;
     const V: i32 = 47;
 

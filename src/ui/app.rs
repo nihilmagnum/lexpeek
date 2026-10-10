@@ -19,7 +19,7 @@ use crate::ui::settings_window::SettingsWindow;
 use crate::ui::shortcuts_window::ShortcutsWindow;
 use crate::ui::tray::TrayIcon;
 
-/// Сценарии и возможности рабочего стола, с которыми работает приложение.
+/// Use cases and desktop capabilities the application works with.
 pub struct Features {
     pub reading: Arc<TextReading>,
     pub languages: Arc<LanguagesService>,
@@ -31,7 +31,7 @@ pub struct Features {
     pub autostart: Arc<dyn LoginAutostart>,
 }
 
-/// Фоновое приложение со значком на панели.
+/// Background application with an icon in the top bar.
 pub struct App {
     application: gtk::Application,
     reading: Arc<TextReading>,
@@ -62,8 +62,8 @@ impl App {
         window.lexpeek-popup { background: transparent; }
     ";
 
-    /// Первый запуск только появляется на панели, следующие открывают кадр; в фоновом режиме
-    /// повторный запуск ничего не делает.
+    /// The first launch only appears in the top bar, later ones open the frame; in background mode
+    /// a repeated launch does nothing.
     pub fn run(features: Features, background: bool) -> glib::ExitCode {
         let application = gtk::Application::builder().application_id(Self::ID).build();
         if let Err(error) = application.register(gio::Cancellable::NONE) {
@@ -84,14 +84,14 @@ impl App {
             screen,
             shortcuts,
         });
-        // Первый экземпляр остаётся в фоне, чтобы следующие запуски сразу доходили до него.
+        // The first instance stays in the background so that later launches reach it immediately.
         let _hold = application.hold();
-        // GTK уже инициализирован: register() сам отправляет startup первому экземпляру.
+        // GTK is already initialized: register() sends startup to the first instance itself.
         Self::load_style();
         app.download_pair_models();
         app.show_tray_icon(autostart);
         app.listen_shortcuts();
-        // run() активирует первый экземпляр сразу, а кадр должен открываться только по запросу.
+        // run() activates the first instance right away, but the frame must open only on request.
         let skip_activation = Cell::new(true);
         application.connect_activate(move |_| {
             if !skip_activation.replace(false) {
@@ -136,7 +136,7 @@ impl App {
         });
     }
 
-    /// У действия без окна сбой виден только в уведомлении.
+    /// For an action without a window a failure is visible only in a notification.
     fn run_without_window(&self, work: impl FnOnce(&SelectionTranslation) -> anyhow::Result<()> + Send + 'static) {
         let selection = Arc::clone(&self.selection);
         let application = self.application.clone();
@@ -152,7 +152,7 @@ impl App {
         });
     }
 
-    /// Модели для выбранной пары языков, например при первом запуске.
+    /// Models for the chosen language pair, for example on first launch.
     fn download_pair_models(&self) {
         let languages = Arc::clone(&self.languages);
         glib::spawn_future_local(async move {
@@ -162,15 +162,15 @@ impl App {
         });
     }
 
-    /// Порт слушает нажатия, пока работает приложение, поэтому занимает свой поток, а нажатия
-    /// передаются в главный поток GTK.
+    /// The port listens for presses while the application runs, so it takes its own thread, and presses
+    /// are passed to the GTK main thread.
     fn listen_shortcuts(self: &Rc<Self>) {
         let (presses, received) = async_channel::unbounded::<ShortcutPress>();
         let shortcuts = Arc::clone(&self.shortcuts);
         std::thread::spawn(move || {
             let specs: Vec<ShortcutSpec> = Action::WITH_SHORTCUT.into_iter().filter_map(Action::shortcut).collect();
             let on_press = Box::new(move |press| {
-                // Канал закрыт, только когда приложение уже завершается.
+                // The channel is closed only when the application is already quitting.
                 let _ = presses.send_blocking(press);
             });
             if let Err(error) = shortcuts.listen(&specs, on_press) {

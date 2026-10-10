@@ -7,7 +7,7 @@ cargo install --path .
 binary="${CARGO_HOME:-$HOME/.cargo}/bin/lexpeek"
 data="${XDG_DATA_HOME:-$HOME/.local/share}"
 
-# GNOME запускает ярлыки без ~/.cargo/bin в PATH, поэтому путь к бинарнику прописывается целиком.
+# GNOME launches desktop entries without ~/.cargo/bin in PATH, so the binary path is written in full.
 mkdir -p "$data/applications"
 sed "s|^Exec=lexpeek|Exec=$binary|" data/io.github.nihilmagnum.Lexpeek.desktop \
     > "$data/applications/io.github.nihilmagnum.Lexpeek.desktop"

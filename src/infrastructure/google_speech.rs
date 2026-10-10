@@ -7,7 +7,7 @@ use crate::domain::language::LanguageCode;
 use crate::domain::text::Phrase;
 use crate::infrastructure::audio_player::GtkAudioPlayer;
 
-/// Озвучка Google Переводчика.
+/// Text-to-speech of Google Translate.
 pub struct GoogleSpeaker {
     agent: ureq::Agent,
     player: GtkAudioPlayer,
@@ -15,7 +15,7 @@ pub struct GoogleSpeaker {
 
 impl GoogleSpeaker {
     const ENDPOINT: &str = "https://clients5.google.com/translate_tts";
-    /// Длиннее этого Google за один запрос не озвучивает.
+    /// Google does not speak anything longer than this in one request.
     const MAX_CHUNK: usize = 200;
 
     pub fn new() -> Self {
@@ -41,7 +41,7 @@ impl GoogleSpeaker {
             .context("Google speech returned no audio")
     }
 
-    /// Куски не длиннее `MAX_CHUNK`, разрезанные по предложениям, а длинные предложения по словам.
+    /// Chunks no longer than `MAX_CHUNK`, split at sentences, and long sentences at words.
     fn chunks(text: &str) -> Vec<String> {
         let mut chunks: Vec<String> = Vec::new();
         let mut current = String::new();
@@ -66,7 +66,7 @@ impl GoogleSpeaker {
 }
 
 impl Speaker for GoogleSpeaker {
-    /// Кадры MP3 независимы, поэтому озвучка кусков склеивается в одну запись и звучит без пауз.
+    /// MP3 frames are independent, so the audio of the chunks is joined into one recording that plays without pauses.
     fn speak(&self, phrase: &Phrase) -> Result<()> {
         let mut audio = Vec::new();
         for chunk in Self::chunks(&phrase.text) {

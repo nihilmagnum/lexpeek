@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 
 use crate::application::reading::{Reading, TextReading};
 
-/// Текст, выделенный в любом окне.
+/// Text selected in any window.
 pub trait SelectedText: Send + Sync {
     fn read(&self) -> Result<Option<String>>;
 }
@@ -13,12 +13,12 @@ pub trait Clipboard: Send + Sync {
     fn put(&self, text: &str) -> Result<()>;
 }
 
-/// Нажатие вставки из буфера обмена в активном окне.
+/// Paste keystroke in the active window.
 pub trait PasteKeystroke: Send + Sync {
     fn paste(&self) -> Result<()>;
 }
 
-/// Перевод выделенного текста: показать, скопировать в буфер обмена или вставить вместо выделения.
+/// Translation of the selected text: show it, copy it to the clipboard or paste it over the selection.
 pub struct SelectionTranslation {
     selection: Arc<dyn SelectedText>,
     reading: Arc<TextReading>,
@@ -36,12 +36,12 @@ impl SelectionTranslation {
         Self { selection, reading, clipboard, keystroke }
     }
 
-    /// `None`, если ничего не выделено.
+    /// `None` if nothing is selected.
     pub fn selected_text(&self) -> Result<Option<String>> {
         Ok(self.selection.read()?.map(|text| text.trim().to_owned()).filter(|text| !text.is_empty()))
     }
 
-    /// Перевод выделенного текста со словарной статьёй.
+    /// Translation of the selected text with a dictionary article.
     pub fn read(&self, text: &str) -> Result<Reading> {
         self.reading.read_text(text)
     }
@@ -51,7 +51,7 @@ impl SelectionTranslation {
         self.clipboard.put(&self.reading.translate(&text)?)
     }
 
-    /// Выделение остаётся в активном окне, поэтому вставка перевода его заменяет.
+    /// The selection stays in the active window, so pasting the translation replaces it.
     pub fn replace(&self) -> Result<()> {
         self.copy()?;
         self.keystroke.paste()
@@ -102,7 +102,7 @@ mod tests {
         }
     }
 
-    /// Переводит английский текст на русский, дописывая к нему пометку.
+    /// Translates English text into Russian, appending a mark to it.
     struct MarkingTranslator;
 
     impl Translator for MarkingTranslator {

@@ -5,12 +5,12 @@ use anyhow::{Context, Result, ensure};
 
 use crate::application::selection::{Clipboard, SelectedText};
 
-/// Буфер обмена и выделение через `wl-copy` и `wl-paste` из wl-clipboard.
+/// Clipboard and selection through `wl-copy` and `wl-paste` from wl-clipboard.
 pub struct WlClipboard;
 
 impl Clipboard for WlClipboard {
-    /// Без нажатия в собственном окне Wayland не даёт записать в буфер обмена, а `wl-copy` получает
-    /// это право сам и остаётся в фоне, пока содержимое буфера не заменят.
+    /// Without a press in its own window Wayland does not allow writing to the clipboard, while `wl-copy` obtains
+    /// that right itself and stays in the background until the clipboard content is replaced.
     fn put(&self, text: &str) -> Result<()> {
         let mut copy = Command::new("wl-copy")
             .stdin(Stdio::piped())
@@ -24,13 +24,13 @@ impl Clipboard for WlClipboard {
 }
 
 impl SelectedText for WlClipboard {
-    /// Выделение хранится в primary selection; без окна в фокусе его читает только `wl-paste`.
+    /// The selection lives in the primary selection; without a focused window only `wl-paste` can read it.
     fn read(&self) -> Result<Option<String>> {
         let output = Command::new("wl-paste")
             .args(["--primary", "--no-newline", "--type", "text/plain;charset=utf-8"])
             .output()
             .context("cannot run wl-paste, is wl-clipboard installed?")?;
-        // wl-paste завершается с ошибкой, когда выделения нет.
+        // wl-paste exits with an error when there is no selection.
         Ok(output.status.success().then(|| String::from_utf8_lossy(&output.stdout).into_owned()))
     }
 }

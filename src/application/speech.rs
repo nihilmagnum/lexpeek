@@ -5,11 +5,11 @@ use anyhow::Result;
 use crate::domain::text::Phrase;
 
 pub trait Speaker: Send + Sync {
-    /// Произносит фразу и возвращается, когда она прозвучала.
+    /// Speaks the phrase and returns when it has finished playing.
     fn speak(&self, phrase: &Phrase) -> Result<()>;
 }
 
-/// Озвучивание оригинала и перевода.
+/// Speech for the original and the translation.
 pub struct ReadingSpeech {
     speaker: Arc<dyn Speaker>,
 }

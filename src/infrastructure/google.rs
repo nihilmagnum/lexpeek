@@ -23,7 +23,7 @@ struct Response {
     examples: Option<ExampleBlock>,
 }
 
-/// Часть перевода или, без `trans`, транслитерация оригинала и перевода.
+/// Part of the translation or, without `trans`, transliteration of the original and the translation.
 #[derive(Deserialize)]
 struct Sentence {
     trans: Option<String>,
@@ -88,14 +88,14 @@ struct Example {
     text: String,
 }
 
-/// Google Переводчик через endpoint словарного расширения Chrome.
+/// Google Translate through the endpoint of the Chrome dictionary extension.
 pub struct GoogleTranslator {
     agent: ureq::Agent,
 }
 
 impl GoogleTranslator {
     const ENDPOINT: &str = "https://clients5.google.com/translate_a/single";
-    /// Перевод, словарь, толкования, примеры, синонимы и транслитерация.
+    /// Translation, dictionary, definitions, examples, synonyms and transliteration.
     const DATA_TYPES: [&str; 6] = ["t", "bd", "md", "ex", "ss", "rm"];
 
     pub fn new() -> Self {
@@ -110,7 +110,7 @@ impl GoogleTranslator {
         }
     }
 
-    /// Код языка без региона: zh-CN становится zh.
+    /// Language code without the region: zh-CN becomes zh.
     fn language_code(code: &str) -> Option<LanguageCode> {
         LanguageCode::parse(code.split('-').next().unwrap_or(code)).ok()
     }
@@ -169,7 +169,7 @@ impl GoogleTranslator {
         DictionaryArticle { transcription, meanings, definitions, examples }
     }
 
-    /// В примерах слово выделено тегами `<b>`.
+    /// In examples the word is marked with `<b>` tags.
     fn plain_text(marked: &str) -> String {
         marked.replace("<b>", "").replace("</b>", "")
     }
@@ -184,8 +184,8 @@ impl Translator for GoogleTranslator {
         "Google Переводчик"
     }
 
-    /// Параметр `hl` задаёт язык подписей и одновременно смещает определение языка, поэтому, пока язык
-    /// оригинала неизвестен, в нём передаётся вероятный язык текста.
+    /// The `hl` parameter sets the language of the labels and also biases language detection, so while the
+    /// language of the original is unknown it carries the likely language of the text.
     fn translate(&self, request: &TranslationRequest) -> Result<Translated> {
         let (source, interface) = match request.source {
             Some(source) => (source.as_str(), Self::code(request.interface)),

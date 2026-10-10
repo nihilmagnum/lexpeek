@@ -49,10 +49,10 @@ struct Word {
     text: String,
 }
 
-/// Яндекс Переводчик и Яндекс Словарь через endpoint мобильного приложения.
+/// Yandex Translate and Yandex Dictionary through the mobile app endpoint.
 pub struct YandexTranslator {
     agent: ureq::Agent,
-    /// Идентификатор клиента, который endpoint требует в каждом запросе.
+    /// Client identifier the endpoint requires in every request.
     client_id: String,
 }
 
@@ -66,7 +66,7 @@ impl YandexTranslator {
         Self { agent: config.into(), client_id: format!("{}-0-0", Uuid::new_v4().simple()) }
     }
 
-    /// Яндекс определяет язык среди подсказанных надёжнее, чем без подсказки.
+    /// Yandex detects the language more reliably among hinted languages than without a hint.
     fn detect(&self, request: &TranslationRequest) -> Result<LanguageCode> {
         let hint = format!("{},{}", request.likely_source.code(), request.target.code());
         let detection: Detection = self
@@ -99,8 +99,8 @@ impl YandexTranslator {
         Ok(translation.text.join("\n"))
     }
 
-    /// Статья есть только у слов и коротких выражений; без неё перевод остаётся полезным,
-    /// поэтому сбой словаря не прерывает перевод.
+    /// Only words and short phrases have an article; the translation is useful without it,
+    /// so a dictionary failure does not interrupt the translation.
     fn article(&self, request: &TranslationRequest, source: &LanguageCode) -> DictionaryArticle {
         match self.lookup(request, source) {
             Ok(article) => article,
@@ -169,7 +169,7 @@ impl Translator for YandexTranslator {
         };
         let text = self.translate_text(request, &source)?;
         let article = self.article(request, &source);
-        // Яндекс не сообщает уверенность определения.
+        // Yandex does not report detection confidence.
         Ok(Translated { text, source: Some(DetectedLanguage { code: source, confidence: None }), article })
     }
 }

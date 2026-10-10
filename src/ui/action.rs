@@ -2,7 +2,7 @@ use gtk::prelude::*;
 
 use crate::application::desktop::ShortcutSpec;
 
-/// Как вызвано действие.
+/// How an action was invoked.
 #[derive(Clone, Debug, Default)]
 pub struct Activation {
     token: Option<String>,
@@ -13,7 +13,7 @@ impl Activation {
         Self { token }
     }
 
-    /// Окну фонового приложения GNOME даёт фокус только по токену активации.
+    /// GNOME gives focus to a window of a background application only with an activation token.
     pub fn present(&self, window: &impl IsA<gtk::Window>) {
         if let Some(token) = &self.token {
             window.set_startup_id(token);
@@ -22,7 +22,7 @@ impl Activation {
     }
 }
 
-/// Действие пользователя: вызывается горячей клавишей или из меню значка.
+/// User action: invoked by a shortcut or from the tray icon menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
     CaptureArea,
@@ -35,10 +35,10 @@ pub enum Action {
 }
 
 impl Action {
-    /// Действия, которым можно назначить глобальную горячую клавишу.
+    /// Actions that can be assigned a global shortcut.
     pub const WITH_SHORTCUT: [Action; 4] =
         [Action::CaptureArea, Action::TranslateSelection, Action::CopyTranslation, Action::ReplaceSelection];
-    /// Пункты меню значка до переключателей.
+    /// Tray icon menu items before the toggles.
     pub const IN_MENU: [Action; 6] = [
         Action::CaptureArea,
         Action::TranslateSelection,

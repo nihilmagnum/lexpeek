@@ -8,7 +8,7 @@ use gtk::{gio, glib};
 
 use crate::application::desktop::{GlobalShortcuts, ShortcutPress, ShortcutSpec};
 
-/// Сочетание приложения, как его хранит gnome-settings-daemon: элемент массива `a(sa{sv})`.
+/// Application shortcut as gnome-settings-daemon stores it: an element of the `a(sa{sv})` array.
 struct StoredShortcut {
     id: String,
     accelerators: Vec<String>,
@@ -33,7 +33,7 @@ impl StoredShortcut {
     }
 }
 
-/// Глобальные горячие клавиши через портал GNOME.
+/// Global shortcuts through the GNOME portal.
 pub struct PortalShortcuts {
     app_id: &'static str,
 }
@@ -63,9 +63,9 @@ impl PortalShortcuts {
         Ok(())
     }
 
-    /// Меняет сочетания так же, как Настройки GNOME: сохраняет их в настройках
-    /// gnome-settings-daemon и передаёт порталу, чтобы они заработали сразу.
-    /// Портал версии 1 сам сменить сочетание не даёт.
+    /// Changes shortcuts the same way GNOME Settings does: stores them in the settings of
+    /// gnome-settings-daemon and passes them to the portal so that they work immediately.
+    /// Version 1 of the portal provides no way to change a shortcut.
     fn bind(&self, spec: &ShortcutSpec, accelerators: Vec<String>) -> Result<()> {
         let mut stored = self.stored();
         stored.retain(|shortcut| shortcut.id != spec.id);
@@ -113,7 +113,7 @@ impl PortalShortcuts {
 }
 
 impl GlobalShortcuts for PortalShortcuts {
-    /// Новые сочетания GNOME спрашивает у пользователя в своём диалоге.
+    /// GNOME asks the user for new shortcuts in its own dialog.
     fn listen(&self, specs: &[ShortcutSpec], on_press: Box<dyn Fn(ShortcutPress) + Send>) -> Result<()> {
         glib::MainContext::new().block_on(Self::bind_and_listen(specs, on_press.as_ref()))?;
         Ok(())
