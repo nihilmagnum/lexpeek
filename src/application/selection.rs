@@ -70,7 +70,8 @@ mod tests {
     use crate::application::languages::LanguageSetupRepository;
     use crate::application::reading::TextRecognizer;
     use crate::application::translators::{
-        DetectedLanguage, Translated, TranslationRequest, Translator, TranslatorSettings, Translators,
+        BatchTranslationRequest, DetectedLanguage, Translated, TranslatedText, TranslationRequest, Translator,
+        TranslatorSettings, Translators,
     };
     use crate::domain::dictionary::DictionaryArticle;
     use crate::domain::language::{Language, LanguageCode, LanguageSetup};
@@ -117,6 +118,10 @@ mod tests {
                 source: Some(DetectedLanguage { code: LanguageCode::parse("en")?, confidence: None }),
                 article: DictionaryArticle::default(),
             })
+        }
+
+        fn translate_batch(&self, _request: &BatchTranslationRequest) -> Result<Vec<TranslatedText>> {
+            unreachable!("selected text is translated as a whole")
         }
     }
 

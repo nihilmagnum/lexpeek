@@ -3,6 +3,7 @@ endonym: English
 
 action:
   capture_area: Translate Screen Area
+  translate_screen: Translate Whole Screen
   translate_selection: Translate Selected Text
   copy_translation: Copy Translation of Selection
   replace_selection: Replace Selection with Translation
@@ -35,6 +36,9 @@ reading:
   examples: Examples
   quoted_example: "“%{example}”"
   synonyms: "Synonyms: %{synonyms}"
+
+screen:
+  nothing_to_translate: No text to translate
 
 settings:
   title: Lexpeek Preferences

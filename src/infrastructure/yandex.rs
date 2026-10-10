@@ -4,9 +4,12 @@ use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::application::translators::{DetectedLanguage, Translated, TranslationRequest, Translator};
-use crate::domain::language::LanguageCode;
+use crate::application::translators::{
+    BatchTranslationRequest, DetectedLanguage, Translated, TranslatedText, TranslationRequest, Translator,
+};
 use crate::domain::dictionary::{DictionaryArticle, Meaning, MeaningTranslation};
+use crate::domain::language::LanguageCode;
+use crate::domain::text::SourceText;
 
 #[derive(Deserialize)]
 struct Detection {
@@ -17,8 +20,17 @@ struct Detection {
 #[derive(Deserialize)]
 struct Translation {
     code: u16,
+    /// Direction of the translation, for example `en-ru`.
+    lang: Option<String>,
     #[serde(default)]
     text: Vec<String>,
+}
+
+impl Translation {
+    fn source(&self) -> Option<LanguageCode> {
+        let direction = self.lang.as_deref()?;
+        LanguageCode::parse(direction.split('-').next().unwrap_or(direction)).ok()
+    }
 }
 
 #[derive(Deserialize)]
@@ -60,6 +72,8 @@ impl YandexTranslator {
     const TRANSLATE_ENDPOINT: &str = "https://translate.yandex.net/api/v1/tr.json";
     const DICTIONARY_ENDPOINT: &str = "https://dictionary.yandex.net/dicservice.json/lookupMultiple";
     const SUCCESS: u16 = 200;
+    /// Yandex rejects requests with more characters of text.
+    const REQUEST_LIMIT: usize = 10_000;
 
     pub fn new() -> Self {
         let config = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(10))).build();
@@ -86,17 +100,53 @@ impl YandexTranslator {
 
     fn translate_text(&self, request: &TranslationRequest, source: &LanguageCode) -> Result<String> {
         let direction = format!("{source}-{}", request.target.code());
+        Ok(self.fetch(std::slice::from_ref(request.text), &direction)?.text.join("\n"))
+    }
+
+    /// Yandex detects one language for all texts of a request. When most of them are already in the target
+    /// language, the others are left untranslated, so they are translated again from the likely language.
+    fn translate_chunk(&self, texts: &[SourceText], request: &BatchTranslationRequest) -> Result<Vec<TranslatedText>> {
+        let (target, likely) = (request.target.code(), request.likely_source.code());
+        let mut translation = self.fetch(texts, target.as_str())?;
+        if translation.source().as_ref() == Some(target) && likely != target {
+            translation = self.fetch(texts, &format!("{likely}-{target}"))?;
+        }
+        let (received, expected) = (translation.text.len(), texts.len());
+        ensure!(received == expected, "Yandex Translate returned {received} of {expected} texts");
+        let source = translation.source();
+        Ok(translation.text.into_iter().map(|text| TranslatedText { text, source: source.clone() }).collect())
+    }
+
+    /// `direction` is either the target language, then Yandex detects the source, or both, like `en-ru`.
+    fn fetch(&self, texts: &[SourceText], direction: &str) -> Result<Translation> {
+        let form = texts.iter().map(|text| ("text", text.as_str())).chain([("lang", direction)]);
         let translation: Translation = self
             .agent
             .post(format!("{}/translate", Self::TRANSLATE_ENDPOINT))
             .query_pairs([("id", self.client_id.as_str()), ("srv", "android")])
-            .send_form([("text", request.text.as_str()), ("lang", direction.as_str())])
+            .send_form(form)
             .context("Yandex Translate request failed")?
             .body_mut()
             .read_json()
             .context("Yandex Translate returned malformed response")?;
         ensure!(translation.code == Self::SUCCESS, "Yandex Translate failed with code {}", translation.code);
-        Ok(translation.text.join("\n"))
+        Ok(translation)
+    }
+
+    /// Consecutive texts within the request limit; a longer text goes alone.
+    fn chunks(texts: &[SourceText]) -> Vec<&[SourceText]> {
+        let mut chunks = Vec::new();
+        let (mut start, mut length) = (0, 0);
+        for (index, text) in texts.iter().enumerate() {
+            let text_length = text.as_str().chars().count();
+            if index > start && length + text_length > Self::REQUEST_LIMIT {
+                chunks.push(&texts[start..index]);
+                (start, length) = (index, 0);
+            }
+            length += text_length;
+        }
+        chunks.push(&texts[start..]);
+        chunks
     }
 
     /// Only words and short phrases have an article; the translation is useful without it,
@@ -180,6 +230,14 @@ impl Translator for YandexTranslator {
         };
         // Yandex does not report detection confidence.
         Ok(Translated { text, source: Some(DetectedLanguage { code: source, confidence: None }), article })
+    }
+
+    fn translate_batch(&self, request: &BatchTranslationRequest) -> Result<Vec<TranslatedText>> {
+        let mut translated = Vec::with_capacity(request.texts.len());
+        for chunk in Self::chunks(request.texts) {
+            translated.extend(self.translate_chunk(chunk, request)?);
+        }
+        Ok(translated)
     }
 }
 

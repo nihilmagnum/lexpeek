@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
+use image::RgbaImage;
 use ksni::TrayMethods;
 use rust_i18n::t;
 
@@ -11,6 +12,7 @@ use crate::application::desktop::{GlobalShortcuts, LoginAutostart, ScreenCapture
 use crate::application::interface::InterfaceLanguageSettings;
 use crate::application::languages::LanguagesService;
 use crate::application::reading::TextReading;
+use crate::application::screen_translation::ScreenTranslation;
 use crate::application::selection::SelectionTranslation;
 use crate::application::speech::ReadingSpeech;
 use crate::application::translators::Translators;
@@ -20,11 +22,13 @@ use crate::ui::overlay::Overlay;
 use crate::ui::selection_popup::SelectionPopup;
 use crate::ui::settings_window::SettingsWindow;
 use crate::ui::shortcuts_window::ShortcutsWindow;
+use crate::ui::translated_screen::TranslatedScreen;
 use crate::ui::tray::TrayIcon;
 
 /// Use cases and desktop capabilities the application works with.
 pub struct Features {
     pub reading: Arc<TextReading>,
+    pub screen_translation: Arc<ScreenTranslation>,
     pub languages: Arc<LanguagesService>,
     pub translators: Arc<Translators>,
     pub selection: Arc<SelectionTranslation>,
@@ -39,6 +43,7 @@ pub struct Features {
 pub struct App {
     application: gtk::Application,
     reading: Arc<TextReading>,
+    screen_translation: Arc<ScreenTranslation>,
     languages: Arc<LanguagesService>,
     translators: Arc<Translators>,
     selection: Arc<SelectionTranslation>,
@@ -82,6 +87,7 @@ impl App {
         }
         let Features {
             reading,
+            screen_translation,
             languages,
             translators,
             selection,
@@ -94,6 +100,7 @@ impl App {
         let app = Rc::new(Self {
             application: application.clone(),
             reading,
+            screen_translation,
             languages,
             translators,
             selection,
@@ -124,7 +131,18 @@ impl App {
 
     fn perform(&self, action: Action, activation: Activation) {
         match action {
-            Action::CaptureArea => self.capture_area(activation),
+            Action::CaptureArea => {
+                let (reading, speech) = (Arc::clone(&self.reading), Arc::clone(&self.speech));
+                self.capture_screen(activation, move |application, screenshot, activation| {
+                    Overlay::show(application, screenshot, reading, speech, activation)
+                })
+            }
+            Action::TranslateScreen => {
+                let translation = Arc::clone(&self.screen_translation);
+                self.capture_screen(activation, move |application, screenshot, activation| {
+                    TranslatedScreen::show(application, screenshot, translation, activation)
+                })
+            }
             Action::TranslateSelection => {
                 let speech = Arc::clone(&self.speech);
                 SelectionPopup::show(&self.application, Arc::clone(&self.selection), speech, activation)
@@ -146,18 +164,20 @@ impl App {
         }
     }
 
-    fn capture_area(&self, activation: Activation) {
+    fn capture_screen(
+        &self,
+        activation: Activation,
+        show: impl FnOnce(&gtk::Application, RgbaImage, &Activation) + 'static,
+    ) {
         if let Some(window) = self.application.active_window() {
             window.present();
             return;
         }
         let application = self.application.clone();
-        let reading = Arc::clone(&self.reading);
-        let speech = Arc::clone(&self.speech);
         let screen = Arc::clone(&self.screen);
         glib::spawn_future_local(async move {
             match gio::spawn_blocking(move || screen.capture()).await {
-                Ok(Ok(screenshot)) => Overlay::show(&application, screenshot, reading, speech, &activation),
+                Ok(Ok(screenshot)) => show(&application, screenshot, &activation),
                 Ok(Err(error)) => eprintln!("lexpeek: {error:#}"),
                 Err(_) => eprintln!("lexpeek: screen capture crashed"),
             }

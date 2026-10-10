@@ -1,10 +1,11 @@
 # Lexpeek
 
-Screen text translator for GNOME on Wayland. Select an area of the screen or text in any window, press a shortcut and get the translation with a dictionary article. It also works where text cannot be copied: in games, images and videos.
+Screen text translator for GNOME on Wayland. Select an area of the screen or text in any window, press a shortcut and get the translation with a dictionary article, or translate the whole screen at once. It also works where text cannot be copied: in games, images and videos.
 
 ## Features
 
 - **Screen area translation.** Text is recognized by Tesseract and translated.
+- **Whole screen translation.** Every paragraph on the screen is replaced with its translation into your language, the way a browser translates a page.
 - **Selected text translation.** A card with the translation, copying the translation to the clipboard, or replacing the selected text with its translation right in the input field.
 - **Dictionary article** for words and short phrases: transcription, translation variants by part of speech, definitions, synonyms, examples.
 - **Choice of translators:** Google Translate and Yandex Translate.
@@ -31,11 +32,12 @@ Lexpeek appears in the application list. On first launch GNOME asks you to choos
 | Action | Default shortcut |
 |---|---|
 | Translate Screen Area | `Ctrl+Alt+R` |
+| Translate Whole Screen | `Ctrl+Alt+S` |
 | Translate Selected Text | `Ctrl+Alt+W` |
 | Copy Translation of Selection | `Ctrl+Alt+C` |
 | Replace Selection with Translation | `Ctrl+Alt+V` |
 
-In screen area mode, select the part with text using the mouse; Esc closes the frame. The window with the translation of the selection closes on Esc or when you switch to another window. Copying and replacing work without windows, and a notification reports failures. For replacing, GNOME asks once for remote desktop permission.
+In screen area mode, select the part with text using the mouse; Esc closes the frame. Whole screen translation shows a frozen frame of the screen with the translations drawn over the original paragraphs; text already in your language stays as it is. A click or Esc closes it. The window with the translation of the selection closes on Esc or when you switch to another window. Copying and replacing work without windows, and a notification reports failures. For replacing, GNOME asks once for remote desktop permission.
 
 Tray icon menu:
 - **Preferences…:** interface language, translator, language pair, downloading and removing recognition models, adding a language from a file.
@@ -75,8 +77,8 @@ The `.deb` package is built with `cargo deb` (requires `cargo install cargo-deb`
 ```
 src/
   domain/          languages, pair and catalog; text; dictionary article
-  application/     use cases (reading and translation, languages, selected text, translator choice)
-                   and the ports they declare, including desktop ports
+  application/     use cases (reading and translation, whole screen translation, languages, selected text,
+                   translator choice) and the ports they declare, including desktop ports
   infrastructure/  Google, Yandex, Tesseract, settings, GNOME portals, wl-clipboard, autostart
   ui/              GTK: application, frame, card, windows, tray icon, interface language
   main.rs          dependency wiring
@@ -96,6 +98,7 @@ Tests: `cargo test`.
 - **Translators.** Google and Yandex are used through unofficial free endpoints without a key. Their owners may restrict or close access.
 - **Changing a shortcut.** It relies on an internal GNOME mechanism and may break after a GNOME update. The shortcuts themselves keep working.
 - **Dictionary article.** Available only for words and short phrases. Yandex provides no definitions or examples.
+- **Whole screen translation.** It works best on plain backgrounds such as documents, websites and application windows. Text on pictures and small buttons may be missed. Yandex detects one language for the whole screen, so on a screen with several languages it translates worse than Google.
 
 ## License
 

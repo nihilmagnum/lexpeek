@@ -14,6 +14,7 @@ use directories::{BaseDirs, ProjectDirs};
 
 use crate::application::languages::LanguagesService;
 use crate::application::reading::TextReading;
+use crate::application::screen_translation::ScreenTranslation;
 use crate::application::selection::SelectionTranslation;
 use crate::application::speech::ReadingSpeech;
 use crate::application::translators::{Translator, Translators};
@@ -67,7 +68,8 @@ fn features(directories: &ProjectDirs) -> Result<Features> {
         vec![Arc::new(GoogleTranslator::new()), Arc::new(YandexTranslator::new())];
     let translators = Arc::new(Translators::new(available, settings.clone()));
     let recognizer = Arc::new(TesseractRecognizer::new(models));
-    let reading = Arc::new(TextReading::new(settings.clone(), recognizer, Arc::clone(&translators)));
+    let reading = Arc::new(TextReading::new(settings.clone(), recognizer.clone(), Arc::clone(&translators)));
+    let screen_translation = ScreenTranslation::new(settings.clone(), recognizer, Arc::clone(&translators));
     let clipboard = Arc::new(WlClipboard);
     let selection = SelectionTranslation::new(
         clipboard.clone(),
@@ -77,6 +79,7 @@ fn features(directories: &ProjectDirs) -> Result<Features> {
     );
     Ok(Features {
         reading,
+        screen_translation: Arc::new(screen_translation),
         languages,
         translators,
         selection: Arc::new(selection),

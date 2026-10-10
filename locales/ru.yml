@@ -3,6 +3,7 @@ endonym: Русский
 
 action:
   capture_area: Перевести область экрана
+  translate_screen: Перевести весь экран
   translate_selection: Перевести выделенный текст
   copy_translation: Скопировать перевод выделенного
   replace_selection: Заменить выделенный текст переводом
@@ -35,6 +36,9 @@ reading:
   examples: Примеры
   quoted_example: "«%{example}»"
   synonyms: "Синонимы: %{synonyms}"
+
+screen:
+  nothing_to_translate: Нечего переводить
 
 settings:
   title: Настройки Lexpeek

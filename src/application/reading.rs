@@ -152,7 +152,7 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
-    use crate::application::translators::TranslatorSettings;
+    use crate::application::translators::{BatchTranslationRequest, TranslatedText, TranslatorSettings};
     use crate::domain::language::LanguageSetup;
 
     struct DefaultSetups;
@@ -208,6 +208,10 @@ mod tests {
             };
             let text = target.to_string();
             Ok(Translated { text, source: Some(detected), article: DictionaryArticle::default() })
+        }
+
+        fn translate_batch(&self, _request: &BatchTranslationRequest) -> Result<Vec<TranslatedText>> {
+            unreachable!("text is read one piece at a time")
         }
     }
 

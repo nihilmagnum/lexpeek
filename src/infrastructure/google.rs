@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 
-use crate::application::translators::{DetectedLanguage, Translated, TranslationRequest, Translator};
+use crate::application::translators::{
+    BatchTranslationRequest, DetectedLanguage, Translated, TranslatedText, TranslationRequest, Translator,
+};
 use crate::domain::dictionary::{Definition, DictionaryArticle, Meaning, MeaningTranslation};
 use crate::domain::language::LanguageCode;
 
@@ -88,13 +90,18 @@ struct Example {
     text: String,
 }
 
-/// Google Translate through the endpoint of the Chrome dictionary extension.
+/// Translation of one text of a batch and the detected language of the original.
+#[derive(Deserialize)]
+struct BatchItem(String, String);
+
+/// Google Translate through the endpoints of the Chrome dictionary extension.
 pub struct GoogleTranslator {
     agent: ureq::Agent,
 }
 
 impl GoogleTranslator {
     const ENDPOINT: &str = "https://clients5.google.com/translate_a/single";
+    const BATCH_ENDPOINT: &str = "https://clients5.google.com/translate_a/t";
     /// Translation, dictionary, definitions, examples, synonyms and transliteration.
     const DATA_TYPES: [&str; 6] = ["t", "bd", "md", "ex", "ss", "rm"];
 
@@ -216,6 +223,26 @@ impl Translator for GoogleTranslator {
         };
         let labelled = self.fetch(request, source.code.as_str(), labels_language)?;
         Ok(Translated { source: detected.source, ..labelled })
+    }
+
+    /// The language of each text is detected separately.
+    fn translate_batch(&self, request: &BatchTranslationRequest) -> Result<Vec<TranslatedText>> {
+        let parameters = [("client", "dict-chrome-ex"), ("sl", "auto"), ("tl", Self::code(request.target.code()))];
+        let items: Vec<BatchItem> = self
+            .agent
+            .post(Self::BATCH_ENDPOINT)
+            .query_pairs(parameters)
+            .send_form(request.texts.iter().map(|text| ("q", text.as_str())))
+            .context("Google Translate request failed")?
+            .body_mut()
+            .read_json()
+            .context("Google Translate returned malformed response")?;
+        let expected = request.texts.len();
+        ensure!(items.len() == expected, "Google Translate returned {} of {expected} texts", items.len());
+        Ok(items
+            .into_iter()
+            .map(|BatchItem(text, source)| TranslatedText { text, source: Self::language_code(&source) })
+            .collect())
     }
 }
 

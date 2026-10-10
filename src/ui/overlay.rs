@@ -1,9 +1,9 @@
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
-use gtk::{gdk, gio, glib};
+use gtk::{gio, glib};
 use image::RgbaImage;
 use rust_i18n::t;
 
@@ -12,17 +12,14 @@ use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
 use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::reading_card::{Anchor, ReadingCard};
+use crate::ui::screen_frame::ScreenFrame;
 
 /// Frozen frame of the screen on which text is selected for translation.
 pub struct Overlay {
-    window: gtk::ApplicationWindow,
-    picture: gtk::Picture,
+    frame: Rc<ScreenFrame>,
     canvas: gtk::DrawingArea,
     card: ReadingCard,
-    screenshot: RgbaImage,
     reading: Arc<TextReading>,
-    /// Screenshot of the monitor the frame is open on.
-    screen: RefCell<Option<RgbaImage>>,
     selection: Cell<Option<Anchor>>,
     /// Number of the latest selection: the recognition result of an older selection is not shown.
     generation: Cell<u64>,
@@ -38,25 +35,18 @@ impl Overlay {
         speech: Arc<ReadingSpeech>,
         activation: &Activation,
     ) {
-        let window = gtk::ApplicationWindow::builder().application(app).decorated(false).build();
-        let picture = gtk::Picture::builder().content_fit(gtk::ContentFit::Fill).can_shrink(true).build();
+        let frame = ScreenFrame::new(app, screenshot);
         let canvas = gtk::DrawingArea::builder().hexpand(true).vexpand(true).build();
         canvas.set_cursor_from_name(Some("crosshair"));
         let card = ReadingCard::new(speech);
-
-        let layers = gtk::Overlay::builder().child(&picture).build();
-        layers.add_overlay(&canvas);
-        layers.add_overlay(card.widget());
-        window.set_child(Some(&layers));
+        frame.layers().add_overlay(&canvas);
+        frame.layers().add_overlay(card.widget());
 
         let overlay = Rc::new(Self {
-            window: window.clone(),
-            picture,
+            frame: Rc::clone(&frame),
             canvas: canvas.clone(),
             card,
-            screenshot,
             reading,
-            screen: RefCell::new(None),
             selection: Cell::new(None),
             generation: Cell::new(0),
         });
@@ -66,53 +56,23 @@ impl Overlay {
             overlay,
             move |_, context, width, height| overlay.draw(context, width, height)
         ));
-        layers.connect_get_child_position(glib::clone!(
+        frame.layers().connect_get_child_position(glib::clone!(
             #[weak]
             overlay,
             #[upgrade_or]
             None,
             move |layers, widget| overlay.card.position(layers, widget, overlay.selection.get()?)
         ));
-        window.connect_realize(glib::clone!(
-            #[weak]
-            overlay,
-            move |window| {
-                if let Some(surface) = window.surface() {
-                    surface.connect_enter_monitor(glib::clone!(
-                        #[weak]
-                        overlay,
-                        move |_, monitor| overlay.show_monitor(monitor)
-                    ));
-                }
-            }
-        ));
         overlay.connect_input();
         // Other handlers hold the overlay weakly; it lives as long as the window.
-        window.connect_destroy(move |_| {
+        frame.window().connect_destroy(move |_| {
             let _ = &overlay;
         });
 
-        window.fullscreen();
-        activation.present(&window);
+        frame.present(activation);
     }
 
     fn connect_input(self: &Rc<Self>) {
-        let keys = gtk::EventControllerKey::new();
-        keys.connect_key_pressed(glib::clone!(
-            #[weak(rename_to = window)]
-            self.window,
-            #[upgrade_or]
-            glib::Propagation::Proceed,
-            move |_, key, _, _| {
-                if key != gdk::Key::Escape {
-                    return glib::Propagation::Proceed;
-                }
-                window.close();
-                glib::Propagation::Stop
-            }
-        ));
-        self.window.add_controller(keys);
-
         let drag = gtk::GestureDrag::new();
         drag.connect_drag_begin(glib::clone!(
             #[weak(rename_to = overlay)]
@@ -130,22 +90,6 @@ impl Overlay {
             move |gesture, offset_x, offset_y| overlay.finish_selection(gesture, offset_x, offset_y)
         ));
         self.canvas.add_controller(drag);
-    }
-
-    /// The portal captures all monitors at once, while the window occupies one of them.
-    fn show_monitor(&self, current: &gdk::Monitor) {
-        let display = WidgetExt::display(&self.window);
-        let monitors: Vec<gdk::Monitor> = display.monitors().iter::<gdk::Monitor>().filter_map(Result::ok).collect();
-        let screen = Self::crop_to_monitor(&self.screenshot, &monitors, current);
-        let texture = gdk::MemoryTexture::new(
-            screen.width() as i32,
-            screen.height() as i32,
-            gdk::MemoryFormat::R8g8b8a8,
-            &glib::Bytes::from(screen.as_raw()),
-            screen.width() as usize * 4,
-        );
-        self.picture.set_paintable(Some(&texture));
-        self.screen.replace(Some(screen));
     }
 
     fn begin_selection(&self, x: f64, y: f64) {
@@ -167,7 +111,7 @@ impl Overlay {
         };
         let area = Anchor::spanning(start_x, start_y, offset_x, offset_y);
         if area.width < Self::MIN_SELECTION || area.height < Self::MIN_SELECTION {
-            self.window.close();
+            self.frame.window().close();
             return;
         }
         self.selection.set(Some(area));
@@ -199,7 +143,7 @@ impl Overlay {
 
     /// Part of the screenshot under the selection, in screenshot pixels.
     fn fragment(&self, area: Anchor) -> Option<RgbaImage> {
-        let screen = self.screen.borrow();
+        let screen = self.frame.screen();
         let screen = screen.as_ref()?;
         let scale = f64::from(screen.width()) / f64::from(self.canvas.width().max(1));
         let x = (area.x * scale).max(0.0) as u32;
@@ -225,20 +169,5 @@ impl Overlay {
             context.rectangle(area.x, area.y, area.width, area.height);
             let _ = context.stroke();
         }
-    }
-
-    fn crop_to_monitor(screenshot: &RgbaImage, monitors: &[gdk::Monitor], current: &gdk::Monitor) -> RgbaImage {
-        let bounds = monitors
-            .iter()
-            .map(|monitor| monitor.geometry())
-            .reduce(|union, geometry| union.union(&geometry))
-            .unwrap_or_else(|| current.geometry());
-        let scale = f64::from(screenshot.width()) / f64::from(bounds.width().max(1));
-        let geometry = current.geometry();
-        let x = (f64::from(geometry.x() - bounds.x()) * scale) as u32;
-        let y = (f64::from(geometry.y() - bounds.y()) * scale) as u32;
-        let width = ((f64::from(geometry.width()) * scale) as u32).min(screenshot.width().saturating_sub(x));
-        let height = ((f64::from(geometry.height()) * scale) as u32).min(screenshot.height().saturating_sub(y));
-        image::imageops::crop_imm(screenshot, x, y, width, height).to_image()
     }
 }

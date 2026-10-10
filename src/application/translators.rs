@@ -33,10 +33,27 @@ pub struct Translated {
     pub article: DictionaryArticle,
 }
 
+/// Texts translated each on its own, in as few requests as the translator allows.
+pub struct BatchTranslationRequest<'a> {
+    pub texts: &'a [SourceText],
+    pub target: &'a Language,
+    /// Most likely language of the texts that need translation.
+    pub likely_source: &'a Language,
+}
+
+/// Translation of one text of a batch.
+pub struct TranslatedText {
+    pub text: String,
+    /// Language of the original, if the translator named it.
+    pub source: Option<LanguageCode>,
+}
+
 pub trait Translator: Send + Sync {
     /// Stable identifier under which the choice of translator is stored in the settings.
     fn id(&self) -> &'static str;
     fn translate(&self, request: &TranslationRequest) -> Result<Translated>;
+    /// One translation per text, in the order of the texts.
+    fn translate_batch(&self, request: &BatchTranslationRequest) -> Result<Vec<TranslatedText>>;
 }
 
 pub trait TranslatorSettings: Send + Sync {

@@ -28,6 +28,38 @@ impl SourceText {
     }
 }
 
+/// Rectangle on the screen in screenshot pixels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScreenArea {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl ScreenArea {
+    pub fn bottom(self) -> u32 {
+        self.y + self.height
+    }
+
+    /// Smallest area covering both.
+    pub fn union(self, other: Self) -> Self {
+        let (x, y) = (self.x.min(other.x), self.y.min(other.y));
+        let right = (self.x + self.width).max(other.x + other.width);
+        Self { x, y, width: right - x, height: self.bottom().max(other.bottom()) - y }
+    }
+}
+
+/// Paragraph of text found on the screen.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ScreenParagraph {
+    /// Recognized text broken into lines as on the screen.
+    pub text: String,
+    pub area: ScreenArea,
+    /// Approximate size of the font in screenshot pixels.
+    pub font_size: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::SourceText;

@@ -27,6 +27,7 @@ impl Activation {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
     CaptureArea,
+    TranslateScreen,
     TranslateSelection,
     CopyTranslation,
     ReplaceSelection,
@@ -37,11 +38,17 @@ pub enum Action {
 
 impl Action {
     /// Actions that can be assigned a global shortcut.
-    pub const WITH_SHORTCUT: [Action; 4] =
-        [Action::CaptureArea, Action::TranslateSelection, Action::CopyTranslation, Action::ReplaceSelection];
-    /// Tray icon menu items before the toggles.
-    pub const IN_MENU: [Action; 6] = [
+    pub const WITH_SHORTCUT: [Action; 5] = [
         Action::CaptureArea,
+        Action::TranslateScreen,
+        Action::TranslateSelection,
+        Action::CopyTranslation,
+        Action::ReplaceSelection,
+    ];
+    /// Tray icon menu items before the toggles.
+    pub const IN_MENU: [Action; 7] = [
+        Action::CaptureArea,
+        Action::TranslateScreen,
         Action::TranslateSelection,
         Action::CopyTranslation,
         Action::ReplaceSelection,
@@ -52,6 +59,7 @@ impl Action {
     pub fn title(self) -> String {
         let title = match self {
             Action::CaptureArea => t!("action.capture_area"),
+            Action::TranslateScreen => t!("action.translate_screen"),
             Action::TranslateSelection => t!("action.translate_selection"),
             Action::CopyTranslation => t!("action.copy_translation"),
             Action::ReplaceSelection => t!("action.replace_selection"),
@@ -65,6 +73,7 @@ impl Action {
     pub fn shortcut(self) -> Option<ShortcutSpec> {
         let (id, preferred_trigger) = match self {
             Action::CaptureArea => ("capture", "CTRL+ALT+R"),
+            Action::TranslateScreen => ("translate-screen", "CTRL+ALT+S"),
             Action::TranslateSelection => ("translate-selection", "CTRL+ALT+W"),
             Action::CopyTranslation => ("copy-translation", "CTRL+ALT+C"),
             Action::ReplaceSelection => ("replace-selection", "CTRL+ALT+V"),
