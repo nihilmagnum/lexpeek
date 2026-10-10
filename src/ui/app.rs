@@ -66,6 +66,7 @@ impl App {
         .lexpeek-section { font-weight: bold; margin-top: 6px; }
         .lexpeek-dim { opacity: 0.7; }
         window.lexpeek-popup { background: transparent; }
+        dropdown popover listview > row > box { border-spacing: 12px; }
     ";
 
     /// The first launch only appears in the top bar, later ones open the frame; in background mode
