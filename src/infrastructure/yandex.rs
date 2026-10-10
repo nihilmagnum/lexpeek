@@ -101,8 +101,13 @@ impl YandexTranslator {
 
     /// Only words and short phrases have an article; the translation is useful without it,
     /// so a dictionary failure does not interrupt the translation.
-    fn article(&self, request: &TranslationRequest, source: &LanguageCode) -> DictionaryArticle {
-        match self.lookup(request, source) {
+    fn article(
+        &self,
+        request: &TranslationRequest,
+        source: &LanguageCode,
+        labels_language: &LanguageCode,
+    ) -> DictionaryArticle {
+        match self.lookup(request, source, labels_language) {
             Ok(article) => article,
             Err(error) => {
                 eprintln!("lexpeek: Yandex Dictionary is unavailable: {error:#}");
@@ -111,13 +116,18 @@ impl YandexTranslator {
         }
     }
 
-    fn lookup(&self, request: &TranslationRequest, source: &LanguageCode) -> Result<DictionaryArticle> {
+    fn lookup(
+        &self,
+        request: &TranslationRequest,
+        source: &LanguageCode,
+        labels_language: &LanguageCode,
+    ) -> Result<DictionaryArticle> {
         let direction = format!("{source}-{}", request.target.code());
         let response: serde_json::Value = self
             .agent
             .get(Self::DICTIONARY_ENDPOINT)
             .query_pairs([
-                ("ui", request.interface.code().as_str()),
+                ("ui", labels_language.as_str()),
                 ("srv", "tr-text"),
                 ("text", request.text.as_str()),
                 ("dict", direction.as_str()),
@@ -158,17 +168,16 @@ impl Translator for YandexTranslator {
         "yandex"
     }
 
-    fn name(&self) -> &'static str {
-        "Яндекс Переводчик"
-    }
-
     fn translate(&self, request: &TranslationRequest) -> Result<Translated> {
         let source = match request.source {
             Some(source) => source.clone(),
             None => self.detect(request)?,
         };
         let text = self.translate_text(request, &source)?;
-        let article = self.article(request, &source);
+        let article = match request.labels_language {
+            Some(labels_language) => self.article(request, &source, labels_language),
+            None => DictionaryArticle::default(),
+        };
         // Yandex does not report detection confidence.
         Ok(Translated { text, source: Some(DetectedLanguage { code: source, confidence: None }), article })
     }

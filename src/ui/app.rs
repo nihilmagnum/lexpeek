@@ -1,18 +1,21 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 use ksni::TrayMethods;
+use rust_i18n::t;
 
-use crate::application::desktop::{GlobalShortcuts, LoginAutostart, ScreenCapture, ShortcutPress, ShortcutSpec};
+use crate::application::desktop::{GlobalShortcuts, LoginAutostart, ScreenCapture, ShortcutPress};
+use crate::application::interface::InterfaceLanguageSettings;
 use crate::application::languages::LanguagesService;
 use crate::application::reading::TextReading;
 use crate::application::selection::SelectionTranslation;
 use crate::application::speech::ReadingSpeech;
 use crate::application::translators::Translators;
 use crate::ui::action::{Action, Activation};
+use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::overlay::Overlay;
 use crate::ui::selection_popup::SelectionPopup;
 use crate::ui::settings_window::SettingsWindow;
@@ -29,6 +32,7 @@ pub struct Features {
     pub screen: Arc<dyn ScreenCapture>,
     pub shortcuts: Arc<dyn GlobalShortcuts>,
     pub autostart: Arc<dyn LoginAutostart>,
+    pub interface_language: Arc<dyn InterfaceLanguageSettings>,
 }
 
 /// Background application with an icon in the top bar.
@@ -41,6 +45,8 @@ pub struct App {
     speech: Arc<ReadingSpeech>,
     screen: Arc<dyn ScreenCapture>,
     shortcuts: Arc<dyn GlobalShortcuts>,
+    interface_language: Rc<InterfaceLanguage>,
+    tray: RefCell<Option<ksni::Handle<TrayIcon>>>,
 }
 
 impl App {
@@ -73,7 +79,17 @@ impl App {
         if application.is_remote() {
             return if background { glib::ExitCode::SUCCESS } else { application.run_with_args::<&str>(&[]) };
         }
-        let Features { reading, languages, translators, selection, speech, screen, shortcuts, autostart } = features;
+        let Features {
+            reading,
+            languages,
+            translators,
+            selection,
+            speech,
+            screen,
+            shortcuts,
+            autostart,
+            interface_language,
+        } = features;
         let app = Rc::new(Self {
             application: application.clone(),
             reading,
@@ -83,9 +99,13 @@ impl App {
             speech,
             screen,
             shortcuts,
+            interface_language: Rc::new(InterfaceLanguage::new(interface_language)),
+            tray: RefCell::new(None),
         });
         // The first instance stays in the background so that later launches reach it immediately.
         let _hold = application.hold();
+        app.interface_language.apply();
+        app.follow_interface_language();
         // GTK is already initialized: register() sends startup to the first instance itself.
         Self::load_style();
         app.download_pair_models();
@@ -110,10 +130,17 @@ impl App {
             }
             Action::CopyTranslation => self.run_without_window(|selection| selection.copy()),
             Action::ReplaceSelection => self.run_without_window(|selection| selection.replace()),
-            Action::Settings => {
-                SettingsWindow::show(&self.application, Arc::clone(&self.languages), Arc::clone(&self.translators))
-            }
-            Action::Shortcuts => ShortcutsWindow::show(&self.application, Arc::clone(&self.shortcuts)),
+            Action::Settings => SettingsWindow::show(
+                &self.application,
+                Arc::clone(&self.languages),
+                Arc::clone(&self.translators),
+                Rc::clone(&self.interface_language),
+            ),
+            Action::Shortcuts => ShortcutsWindow::show(
+                &self.application,
+                Arc::clone(&self.shortcuts),
+                Rc::clone(&self.interface_language),
+            ),
             Action::Quit => self.application.quit(),
         }
     }
@@ -144,11 +171,40 @@ impl App {
             let message = match gio::spawn_blocking(move || work(&selection)).await {
                 Ok(Ok(())) => return,
                 Ok(Err(error)) => format!("{error:#}"),
-                Err(_) => "translation crashed".to_owned(),
+                Err(_) => t!("reading.translation_crashed").into_owned(),
             };
-            let notification = gio::Notification::new("Lexpeek не смог перевести выделенный текст");
+            let notification = gio::Notification::new(&t!("notification.selection_failed"));
             notification.set_body(Some(&message));
             application.send_notification(None, &notification);
+        });
+    }
+
+    /// Windows follow the interface language themselves; the tray menu and the shortcut descriptions
+    /// that GNOME shows follow it here.
+    fn follow_interface_language(self: &Rc<Self>) {
+        self.interface_language.connect_switched(self, |app| {
+            app.refresh_tray();
+            app.describe_shortcuts();
+        });
+    }
+
+    /// The tray menu is rebuilt only on request.
+    fn refresh_tray(&self) {
+        let Some(tray) = self.tray.borrow().clone() else {
+            return;
+        };
+        glib::spawn_future_local(async move {
+            tray.update(|_| {}).await;
+        });
+    }
+
+    fn describe_shortcuts(&self) {
+        let shortcuts = Arc::clone(&self.shortcuts);
+        let specs = Action::shortcut_specs();
+        glib::spawn_future_local(async move {
+            if let Ok(Err(error)) = gio::spawn_blocking(move || shortcuts.describe(&specs)).await {
+                eprintln!("lexpeek: {error:#}");
+            }
         });
     }
 
@@ -168,7 +224,7 @@ impl App {
         let (presses, received) = async_channel::unbounded::<ShortcutPress>();
         let shortcuts = Arc::clone(&self.shortcuts);
         std::thread::spawn(move || {
-            let specs: Vec<ShortcutSpec> = Action::WITH_SHORTCUT.into_iter().filter_map(Action::shortcut).collect();
+            let specs = Action::shortcut_specs();
             let on_press = Box::new(move |press| {
                 // The channel is closed only when the application is already quitting.
                 let _ = presses.send_blocking(press);
@@ -192,8 +248,8 @@ impl App {
         let tray = TrayIcon::new(Self::ID, autostart, actions);
         let app = Rc::clone(self);
         glib::spawn_future_local(async move {
-            let _tray = match tray.spawn().await {
-                Ok(tray) => tray,
+            match tray.spawn().await {
+                Ok(tray) => app.tray.replace(Some(tray)),
                 Err(error) => return eprintln!("lexpeek: cannot show tray icon: {error}"),
             };
             while let Ok(action) = received.recv().await {

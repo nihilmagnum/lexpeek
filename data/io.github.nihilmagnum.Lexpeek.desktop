@@ -1,10 +1,12 @@
 [Desktop Entry]
 Type=Application
 Name=Lexpeek
-Comment=Перевод текста с экрана
+Comment=Translate text on the screen
+Comment[ru]=Перевод текста с экрана
 Exec=lexpeek
 Icon=io.github.nihilmagnum.Lexpeek
 Terminal=false
 StartupNotify=false
 Categories=Utility;Office;Dictionary;
-Keywords=translate;dictionary;ocr;перевод;словарь;
+Keywords=translate;dictionary;ocr;
+Keywords[ru]=translate;dictionary;ocr;перевод;словарь;

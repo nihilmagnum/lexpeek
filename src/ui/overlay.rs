@@ -5,10 +5,12 @@ use std::sync::Arc;
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
 use image::RgbaImage;
+use rust_i18n::t;
 
 use crate::application::reading::TextReading;
 use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
+use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::reading_card::{Anchor, ReadingCard};
 
 /// Frozen frame of the screen on which text is selected for translation.
@@ -176,18 +178,21 @@ impl Overlay {
 
         let generation = self.generation.get() + 1;
         self.generation.set(generation);
-        self.card.show_message("Распознаю…");
+        self.card.show_message(&t!("reading.recognizing"));
         let overlay = Rc::clone(self);
         let reading = Arc::clone(&self.reading);
+        let labels_language = InterfaceLanguage::current();
         glib::spawn_future_local(async move {
-            let result = gio::spawn_blocking(move || reading.read_fragment(&fragment)).await;
+            let result = gio::spawn_blocking(move || reading.read_fragment(&fragment, &labels_language)).await;
             if overlay.generation.get() != generation {
                 return;
             }
             match result {
                 Ok(Ok(reading)) => overlay.card.show_reading(&reading),
-                Ok(Err(error)) => overlay.card.show_message(&format!("Не удалось распознать текст: {error:#}")),
-                Err(_) => overlay.card.show_message("Распознавание аварийно завершилось"),
+                Ok(Err(error)) => {
+                    overlay.card.show_message(&t!("reading.recognition_failed", error = format!("{error:#}")))
+                }
+                Err(_) => overlay.card.show_message(&t!("reading.recognition_crashed")),
             }
         });
     }

@@ -2,6 +2,7 @@ use gtk::prelude::*;
 use std::sync::Arc;
 
 use gtk::{gdk, gio, glib, pango};
+use rust_i18n::t;
 
 use crate::application::reading::Reading;
 use crate::application::speech::ReadingSpeech;
@@ -81,20 +82,23 @@ impl ReadingCard {
 
     pub fn show_reading(&self, reading: &Reading) {
         if reading.text.is_empty() {
-            return self.show_message("Текст не распознан");
+            return self.show_message(&t!("reading.nothing_recognized"));
         }
         let content = gtk::Box::new(gtk::Orientation::Vertical, 10);
         let article = reading.translation.as_ref().ok().map(|translation| &translation.article);
         let transcription = article.and_then(|article| article.transcription.as_deref());
         let original = Self::original_label(&reading.text, transcription);
-        content.append(&self.spoken_view(&original, reading.original(), "Озвучить оригинал"));
+        content.append(&self.spoken_view(&original, reading.original(), t!("reading.speak_original").into()));
         match &reading.translation {
             Ok(translation) => {
                 let translated = Self::label(&translation.text, &["lexpeek-translation"]);
-                content.append(&self.spoken_view(&translated, Some(translation.phrase()), "Озвучить перевод"));
+                let tooltip = t!("reading.speak_translation").into();
+                content.append(&self.spoken_view(&translated, Some(translation.phrase()), tooltip));
                 Self::append_article(&content, &translation.article);
             }
-            Err(error) => content.append(&Self::label(&format!("Не удалось перевести: {error:#}"), &[])),
+            Err(error) => {
+                content.append(&Self::label(&t!("reading.translation_failed", error = format!("{error:#}")), &[]))
+            }
         }
         self.show(&content);
     }
@@ -128,7 +132,7 @@ impl ReadingCard {
     }
 
     /// Text with a speech button, if there is something to speak.
-    fn spoken_view(&self, text: &gtk::Label, phrase: Option<Phrase>, tooltip: &'static str) -> gtk::Box {
+    fn spoken_view(&self, text: &gtk::Label, phrase: Option<Phrase>, tooltip: String) -> gtk::Box {
         let view = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         text.set_hexpand(true);
         view.append(text);
@@ -138,19 +142,19 @@ impl ReadingCard {
         view
     }
 
-    fn speak_button(&self, phrase: Phrase, tooltip: &'static str) -> gtk::Button {
+    fn speak_button(&self, phrase: Phrase, tooltip: String) -> gtk::Button {
         let button = gtk::Button::builder()
             .icon_name("audio-volume-high-symbolic")
-            .tooltip_text(tooltip)
+            .tooltip_text(&tooltip)
             .valign(gtk::Align::Start)
             .css_classes(["flat"])
             .build();
         let speech = Arc::clone(&self.speech);
-        button.connect_clicked(move |button| Self::speak(button, Arc::clone(&speech), phrase.clone(), tooltip));
+        button.connect_clicked(move |button| Self::speak(button, Arc::clone(&speech), phrase.clone(), tooltip.clone()));
         button
     }
 
-    fn speak(button: &gtk::Button, speech: Arc<ReadingSpeech>, phrase: Phrase, tooltip: &'static str) {
+    fn speak(button: &gtk::Button, speech: Arc<ReadingSpeech>, phrase: Phrase, tooltip: String) {
         button.set_sensitive(false);
         glib::spawn_future_local(glib::clone!(
             #[weak]
@@ -158,12 +162,12 @@ impl ReadingCard {
             async move {
                 let spoken = gio::spawn_blocking(move || speech.speak(&phrase)).await;
                 button.set_sensitive(true);
-                let error = match spoken {
-                    Ok(Ok(())) => return button.set_tooltip_text(Some(tooltip)),
-                    Ok(Err(error)) => format!("{error:#}"),
-                    Err(_) => "speech crashed".to_owned(),
+                let failure = match spoken {
+                    Ok(Ok(())) => return button.set_tooltip_text(Some(&tooltip)),
+                    Ok(Err(error)) => t!("reading.speech_failed", error = format!("{error:#}")),
+                    Err(_) => t!("reading.speech_crashed"),
                 };
-                button.set_tooltip_text(Some(&format!("Не удалось озвучить: {error}")));
+                button.set_tooltip_text(Some(&failure));
             }
         ));
     }
@@ -185,7 +189,7 @@ impl ReadingCard {
             content.append(&Self::meaning_view(meaning));
         }
         if !article.definitions.is_empty() {
-            content.append(&Self::label("Толкования", &["lexpeek-section"]));
+            content.append(&Self::label(&t!("reading.definitions"), &["lexpeek-section"]));
             let mut parts: Vec<&str> = Vec::new();
             for definition in &article.definitions {
                 if !parts.contains(&definition.part_of_speech.as_str()) {
@@ -201,7 +205,7 @@ impl ReadingCard {
             }
         }
         if !article.examples.is_empty() {
-            content.append(&Self::label("Примеры", &["lexpeek-section"]));
+            content.append(&Self::label(&t!("reading.examples"), &["lexpeek-section"]));
             for example in article.examples.iter().take(Self::EXAMPLES) {
                 content.append(&Self::markup_label(&format!("• <i>{}</i>", glib::markup_escape_text(example)), &[]));
             }
@@ -228,12 +232,13 @@ impl ReadingCard {
         let view = gtk::Box::new(gtk::Orientation::Vertical, 2);
         view.append(&Self::label(&definition.gloss, &[]));
         if let Some(example) = &definition.example {
-            let markup = format!("<i>«{}»</i>", glib::markup_escape_text(example));
+            let quoted = t!("reading.quoted_example", example = glib::markup_escape_text(example));
+            let markup = format!("<i>{quoted}</i>");
             view.append(&Self::markup_label(&markup, &["lexpeek-dim"]));
         }
         if !definition.synonyms.is_empty() {
             let synonyms: Vec<&str> = definition.synonyms.iter().take(Self::SYNONYMS).map(String::as_str).collect();
-            view.append(&Self::label(&format!("Синонимы: {}", synonyms.join(", ")), &["lexpeek-dim"]));
+            view.append(&Self::label(&t!("reading.synonyms", synonyms = synonyms.join(", ")), &["lexpeek-dim"]));
         }
         view
     }

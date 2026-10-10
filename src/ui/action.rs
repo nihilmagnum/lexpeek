@@ -1,4 +1,5 @@
 use gtk::prelude::*;
+use rust_i18n::t;
 
 use crate::application::desktop::ShortcutSpec;
 
@@ -48,16 +49,17 @@ impl Action {
         Action::Shortcuts,
     ];
 
-    pub fn title(self) -> &'static str {
-        match self {
-            Action::CaptureArea => "Перевести область экрана",
-            Action::TranslateSelection => "Перевести выделенный текст",
-            Action::CopyTranslation => "Скопировать перевод выделенного",
-            Action::ReplaceSelection => "Заменить выделенный текст переводом",
-            Action::Settings => "Настройки…",
-            Action::Shortcuts => "Горячие клавиши…",
-            Action::Quit => "Выйти",
-        }
+    pub fn title(self) -> String {
+        let title = match self {
+            Action::CaptureArea => t!("action.capture_area"),
+            Action::TranslateSelection => t!("action.translate_selection"),
+            Action::CopyTranslation => t!("action.copy_translation"),
+            Action::ReplaceSelection => t!("action.replace_selection"),
+            Action::Settings => t!("action.settings"),
+            Action::Shortcuts => t!("action.shortcuts"),
+            Action::Quit => t!("action.quit"),
+        };
+        title.into_owned()
     }
 
     pub fn shortcut(self) -> Option<ShortcutSpec> {
@@ -69,6 +71,10 @@ impl Action {
             Action::Settings | Action::Shortcuts | Action::Quit => return None,
         };
         Some(ShortcutSpec { id, description: self.title(), preferred_trigger })
+    }
+
+    pub fn shortcut_specs() -> Vec<ShortcutSpec> {
+        Self::WITH_SHORTCUT.into_iter().filter_map(Action::shortcut).collect()
     }
 
     pub fn by_shortcut_id(id: &str) -> Option<Self> {

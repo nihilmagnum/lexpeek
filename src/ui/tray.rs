@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_channel::Sender;
 use ksni::MenuItem;
 use ksni::menu::{CheckmarkItem, StandardItem};
+use rust_i18n::t;
 
 use crate::application::desktop::LoginAutostart;
 use crate::ui::action::Action;
@@ -26,7 +27,7 @@ impl TrayIcon {
 
     fn action_item(action: Action) -> MenuItem<Self> {
         StandardItem {
-            label: action.title().into(),
+            label: action.title(),
             activate: Box::new(move |tray: &mut Self| tray.send(action)),
             ..Default::default()
         }
@@ -62,7 +63,7 @@ impl ksni::Tray for TrayIcon {
         menu.push(MenuItem::Separator);
         menu.push(
             CheckmarkItem {
-                label: "Запускать при входе".into(),
+                label: t!("tray.autostart").into(),
                 checked: self.autostart.is_enabled(),
                 activate: Box::new(|tray: &mut Self| tray.toggle_autostart()),
                 ..Default::default()
@@ -72,7 +73,7 @@ impl ksni::Tray for TrayIcon {
         menu.push(MenuItem::Separator);
         menu.push(
             StandardItem {
-                label: Action::Quit.title().into(),
+                label: Action::Quit.title(),
                 icon_name: "application-exit".into(),
                 activate: Box::new(|tray: &mut Self| tray.send(Action::Quit)),
                 ..Default::default()

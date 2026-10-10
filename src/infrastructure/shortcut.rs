@@ -52,7 +52,7 @@ impl PortalShortcuts {
         let mut activations = portal.receive_activated().await?;
         let shortcuts: Vec<NewShortcut> = specs
             .iter()
-            .map(|spec| NewShortcut::new(spec.id, spec.description).preferred_trigger(spec.preferred_trigger))
+            .map(|spec| NewShortcut::new(spec.id, &spec.description).preferred_trigger(spec.preferred_trigger))
             .collect();
         portal.bind_shortcuts(&session, &shortcuts, None, Default::default()).await?.response()?;
         while let Some(activation) = activations.next().await {
@@ -63,13 +63,17 @@ impl PortalShortcuts {
         Ok(())
     }
 
-    /// Changes shortcuts the same way GNOME Settings does: stores them in the settings of
-    /// gnome-settings-daemon and passes them to the portal so that they work immediately.
-    /// Version 1 of the portal provides no way to change a shortcut.
     fn bind(&self, spec: &ShortcutSpec, accelerators: Vec<String>) -> Result<()> {
         let mut stored = self.stored();
         stored.retain(|shortcut| shortcut.id != spec.id);
-        stored.push(StoredShortcut { id: spec.id.to_owned(), accelerators, description: spec.description.to_owned() });
+        stored.push(StoredShortcut { id: spec.id.to_owned(), accelerators, description: spec.description.clone() });
+        self.store(&stored)
+    }
+
+    /// Changes shortcuts the same way GNOME Settings does: stores them in the settings of
+    /// gnome-settings-daemon and passes them to the portal so that they work immediately.
+    /// Version 1 of the portal provides no way to change a shortcut.
+    fn store(&self, stored: &[StoredShortcut]) -> Result<()> {
         let shortcuts = glib::Variant::array_from_iter_with_type(
             glib::VariantTy::new("(sa{sv})").expect("valid variant type"),
             stored.iter().map(StoredShortcut::to_variant),
@@ -97,7 +101,7 @@ impl PortalShortcuts {
             5000,
             gio::Cancellable::NONE,
         )
-        .context("GNOME did not accept the new shortcut")?;
+        .context("GNOME did not accept the shortcuts")?;
         Ok(())
     }
 
@@ -130,5 +134,21 @@ impl GlobalShortcuts for PortalShortcuts {
 
     fn clear(&self, spec: &ShortcutSpec) -> Result<()> {
         self.bind(spec, Vec::new())
+    }
+
+    fn describe(&self, specs: &[ShortcutSpec]) -> Result<()> {
+        let mut stored = self.stored();
+        let mut changed = false;
+        for shortcut in &mut stored {
+            let Some(spec) = specs.iter().find(|spec| spec.id == shortcut.id) else {
+                continue;
+            };
+            changed |= shortcut.description != spec.description;
+            shortcut.description = spec.description.clone();
+        }
+        if !changed {
+            return Ok(());
+        }
+        self.store(&stored)
     }
 }

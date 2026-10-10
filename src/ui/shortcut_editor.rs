@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
+use rust_i18n::t;
 
 use crate::application::desktop::{GlobalShortcuts, ShortcutSpec};
 
@@ -26,7 +27,8 @@ impl ShortcutEditor {
         spec: ShortcutSpec,
         on_saved: Rc<dyn Fn()>,
     ) {
-        let status = gtk::Label::builder().label("Esc — отмена").css_classes(["dim-label"]).wrap(true).build();
+        let status =
+            gtk::Label::builder().label(t!("shortcuts.cancel_hint")).css_classes(["dim-label"]).wrap(true).build();
         let content = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(12)
@@ -35,13 +37,13 @@ impl ShortcutEditor {
             .margin_start(32)
             .margin_end(32)
             .build();
-        content.append(&gtk::Label::builder().label(spec.description).css_classes(["title-3"]).build());
-        content.append(&gtk::Label::builder().label("Нажмите новое сочетание клавиш").build());
+        content.append(&gtk::Label::builder().label(&spec.description).css_classes(["title-3"]).build());
+        content.append(&gtk::Label::builder().label(t!("shortcuts.press_new")).build());
         content.append(&status);
 
         let window = gtk::ApplicationWindow::builder()
             .application(app)
-            .title("Горячая клавиша Lexpeek")
+            .title(t!("shortcuts.editor_title"))
             .resizable(false)
             .default_width(380)
             .child(&content)
@@ -58,7 +60,7 @@ impl ShortcutEditor {
             move |controller, key, keycode, state| {
                 let pressed = PressedKeys { key, keycode, state };
                 let shortcuts = Arc::clone(&shortcuts);
-                Self::key_pressed(controller, &window, &status, shortcuts, spec, Rc::clone(&on_saved), pressed)
+                Self::key_pressed(controller, &window, &status, shortcuts, spec.clone(), Rc::clone(&on_saved), pressed)
             }
         ));
         window.add_controller(keys);
@@ -86,13 +88,13 @@ impl ShortcutEditor {
             return glib::Propagation::Proceed;
         }
         if (modifiers - gdk::ModifierType::SHIFT_MASK).is_empty() {
-            status.set_label("Нужен Ctrl, Alt или Super");
+            status.set_label(&t!("shortcuts.modifier_required"));
             return glib::Propagation::Stop;
         }
 
         let latin = Self::latin_key(window, keycode, key).to_lower();
         let accelerator = gtk::accelerator_name(latin, modifiers);
-        status.set_label(&format!("Сохраняю {}…", gtk::accelerator_get_label(latin, modifiers)));
+        status.set_label(&t!("shortcuts.saving", shortcut = gtk::accelerator_get_label(latin, modifiers)));
         glib::spawn_future_local(glib::clone!(
             #[weak]
             window,
@@ -104,8 +106,8 @@ impl ShortcutEditor {
                         window.close();
                         on_saved();
                     }
-                    Ok(Err(error)) => status.set_label(&format!("Не удалось сохранить: {error:#}")),
-                    Err(_) => status.set_label("Сохранение аварийно завершилось"),
+                    Ok(Err(error)) => status.set_label(&t!("shortcuts.save_failed", error = format!("{error:#}"))),
+                    Err(_) => status.set_label(&t!("shortcuts.save_crashed")),
                 }
             }
         ));

@@ -11,6 +11,7 @@ Screen text translator for GNOME on Wayland. Select an area of the screen or tex
 - **Speech** for the original and the translation with buttons on the card.
 - **Language pair with auto-detection:** text in your native language is translated into the second one, text in any other language into your native one.
 - **Recognition languages:** 13 built-in ones whose models are downloaded from the app. Any other language can be added from a `.traineddata` file.
+- **Interface in English and Russian:** follows the system language by default and can be chosen in the preferences.
 - Icon in the top bar, customizable shortcuts, start at login.
 
 ## Installation
@@ -37,7 +38,7 @@ Lexpeek appears in the application list. On first launch GNOME asks you to choos
 In screen area mode, select the part with text using the mouse; Esc closes the frame. The window with the translation of the selection closes on Esc or when you switch to another window. Copying and replacing work without windows, and a notification reports failures. For replacing, GNOME asks once for remote desktop permission.
 
 Tray icon menu:
-- **Preferences…:** translator, language pair, downloading and removing recognition models, adding a language from a file.
+- **Preferences…:** interface language, translator, language pair, downloading and removing recognition models, adding a language from a file.
 - **Keyboard Shortcuts…:** changing and clearing shortcuts.
 - **Start at Login.**
 
@@ -45,7 +46,7 @@ Tray icon menu:
 
 | What | Where |
 |---|---|
-| Settings: language pair, custom languages, translator | `~/.config/lexpeek/settings.json` |
+| Settings: interface language, language pair, custom languages, translator | `~/.config/lexpeek/settings.json` |
 | Recognition models | `~/.local/share/lexpeek/tessdata` |
 | Remote desktop permission | `~/.local/share/lexpeek/remote-desktop-token` |
 
@@ -77,11 +78,14 @@ src/
   application/     use cases (reading and translation, languages, selected text, translator choice)
                    and the ports they declare, including desktop ports
   infrastructure/  Google, Yandex, Tesseract, settings, GNOME portals, wl-clipboard, autostart
-  ui/              GTK: application, frame, card, windows, tray icon
+  ui/              GTK: application, frame, card, windows, tray icon, interface language
   main.rs          dependency wiring
+locales/           interface translations
 ```
 
-To add a translator, implement the `Translator` trait in `src/infrastructure/` and add it to the `available` list in `src/main.rs`. The choice in the preferences, language detection and the dictionary article are picked up automatically.
+To add a translator, implement the `Translator` trait in `src/infrastructure/`, add it to the `available` list in `src/main.rs` and its name to `locales/*.yml` under the `translators.<id>` key. The choice in the preferences, language detection and the dictionary article are picked up automatically.
+
+To translate the interface into a new language, copy `locales/en.yml` to `locales/<code>.yml` and translate the strings; the language appears in the preferences automatically. `cargo test` checks that all translations have the same set of strings.
 
 To add an action, add a variant to `Action` (`src/ui/action.rs`) and handle it in `App::perform`. The shortcut and the menu item come from the list of actions.
 

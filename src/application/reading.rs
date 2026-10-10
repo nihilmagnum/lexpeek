@@ -68,41 +68,46 @@ impl TextReading {
     }
 
     /// Recognizes text in a fragment of a screenshot and translates it.
-    pub fn read_fragment(&self, fragment: &RgbaImage) -> Result<Reading> {
+    pub fn read_fragment(&self, fragment: &RgbaImage, labels_language: &LanguageCode) -> Result<Reading> {
         let pair = self.language_setups.load()?.pair().clone();
         let text = self.recognizer.recognize(fragment, &pair.languages())?;
-        Ok(self.read(text, &pair))
+        Ok(self.read(text, &pair, labels_language))
     }
 
-    pub fn read_text(&self, text: &str) -> Result<Reading> {
+    pub fn read_text(&self, text: &str, labels_language: &LanguageCode) -> Result<Reading> {
         let pair = self.language_setups.load()?.pair().clone();
-        Ok(self.read(text.trim().to_owned(), &pair))
+        Ok(self.read(text.trim().to_owned(), &pair, labels_language))
     }
 
     /// Only the translated text, without the dictionary article.
     pub fn translate(&self, text: &str) -> Result<String> {
         let pair = self.language_setups.load()?.pair().clone();
-        Ok(self.translate_in_pair(&SourceText::from_recognized(text), &pair)?.text)
+        Ok(self.translate_in_pair(&SourceText::from_recognized(text), &pair, None)?.text)
     }
 
-    fn read(&self, text: String, pair: &LanguagePair) -> Reading {
+    fn read(&self, text: String, pair: &LanguagePair, labels_language: &LanguageCode) -> Reading {
         if text.is_empty() {
             let language = pair.native().clone();
             let article = DictionaryArticle::default();
             let translation = Translation { text: String::new(), language, source: None, article };
             return Reading { text, translation: Ok(translation) };
         }
-        let translation = self.translate_in_pair(&SourceText::from_recognized(&text), pair);
+        let translation = self.translate_in_pair(&SourceText::from_recognized(&text), pair, Some(labels_language));
         Reading { text, translation }
     }
 
     /// The language of the original becomes known only after the first translation, so text in the native
     /// language or with a clarified language is translated again.
-    fn translate_in_pair(&self, text: &SourceText, pair: &LanguagePair) -> Result<Translation> {
+    fn translate_in_pair(
+        &self,
+        text: &SourceText,
+        pair: &LanguagePair,
+        labels_language: Option<&LanguageCode>,
+    ) -> Result<Translation> {
         let translator = self.translators.selected()?;
         let native = pair.native();
         let to_native =
-            TranslationRequest { text, source: None, target: native, likely_source: native, interface: native };
+            TranslationRequest { text, source: None, target: native, likely_source: native, labels_language };
         let translated = translator.translate(&to_native)?;
         let detected = translated.source.as_ref().map(|source| source.code.clone());
         let source = Self::clarify_source(translator.as_ref(), text, pair, translated.source.as_ref())?;
@@ -111,7 +116,7 @@ impl TextReading {
             return Ok(Translation::new(translated, target, source));
         }
         let request =
-            TranslationRequest { text, source: source.as_ref(), target, likely_source: native, interface: native };
+            TranslationRequest { text, source: source.as_ref(), target, likely_source: native, labels_language };
         Ok(Translation::new(translator.translate(&request)?, target, source))
     }
 
@@ -135,7 +140,7 @@ impl TextReading {
             source: None,
             target: pair.native(),
             likely_source: pair.foreign(),
-            interface: pair.native(),
+            labels_language: None,
         };
         let clarified = translator.translate(&hinted)?.source.map(|source| source.code);
         Ok(Some(clarified.filter(|code| pair.contains_code(code)).unwrap_or_else(|| detected.code.clone())))
@@ -189,14 +194,11 @@ mod tests {
             "hint-sensitive"
         }
 
-        fn name(&self) -> &'static str {
-            "Test"
-        }
-
         fn translate(&self, request: &TranslationRequest) -> Result<Translated> {
             let source = request.source.map_or("auto", LanguageCode::as_str);
             let (target, likely) = (request.target.code(), request.likely_source.code());
-            self.requests.lock().unwrap().push(format!("{source}->{target} likely {likely}"));
+            let labels = request.labels_language.map_or("none", LanguageCode::as_str);
+            self.requests.lock().unwrap().push(format!("{source}->{target} likely {likely} labels {labels}"));
             let detected = match request.source {
                 Some(code) => DetectedLanguage { code: code.clone(), confidence: None },
                 None if likely.as_str() == self.recognized_with => {
@@ -231,23 +233,28 @@ mod tests {
         let translator = HintSensitiveTranslator::new("ru", "ru");
 
         assert_eq!(reading(translator.clone()).translate("версия").unwrap(), "en");
-        assert_eq!(*translator.requests.lock().unwrap(), ["auto->ru likely ru", "ru->en likely ru"]);
+        let requests = translator.requests.lock().unwrap();
+        assert_eq!(*requests, ["auto->ru likely ru labels none", "ru->en likely ru labels none"]);
     }
 
     #[test]
     fn clarifies_ambiguous_word_by_foreign_language() {
         let translator = HintSensitiveTranslator::new("en", "en");
 
-        assert_eq!(reading(translator.clone()).translate("version").unwrap(), "ru");
+        let labels_language = LanguageCode::parse("en").unwrap();
+        let reading = reading(translator.clone()).read_text("version", &labels_language).unwrap();
+        assert_eq!(reading.translation.unwrap().text, "ru");
         let requests = translator.requests.lock().unwrap();
-        assert_eq!(*requests, ["auto->ru likely ru", "auto->ru likely en", "en->ru likely ru"]);
+        let expected = ["auto->ru likely ru labels en", "auto->ru likely en labels none", "en->ru likely ru labels en"];
+        assert_eq!(*requests, expected);
     }
 
     #[test]
     fn names_language_of_original() {
         let translator = HintSensitiveTranslator::new("en", "en");
 
-        let original = reading(translator).read_text("version").unwrap().original();
+        let labels_language = LanguageCode::parse("ru").unwrap();
+        let original = reading(translator).read_text("version", &labels_language).unwrap().original();
         let expected = Phrase { text: "version".to_owned(), language: LanguageCode::parse("en").unwrap() };
         assert_eq!(original, Some(expected));
     }

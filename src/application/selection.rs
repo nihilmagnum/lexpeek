@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 
 use crate::application::reading::{Reading, TextReading};
+use crate::domain::language::LanguageCode;
 
 /// Text selected in any window.
 pub trait SelectedText: Send + Sync {
@@ -42,8 +43,8 @@ impl SelectionTranslation {
     }
 
     /// Translation of the selected text with a dictionary article.
-    pub fn read(&self, text: &str) -> Result<Reading> {
-        self.reading.read_text(text)
+    pub fn read(&self, text: &str, labels_language: &LanguageCode) -> Result<Reading> {
+        self.reading.read_text(text, labels_language)
     }
 
     pub fn copy(&self) -> Result<()> {
@@ -108,10 +109,6 @@ mod tests {
     impl Translator for MarkingTranslator {
         fn id(&self) -> &'static str {
             "marking"
-        }
-
-        fn name(&self) -> &'static str {
-            "Test"
         }
 
         fn translate(&self, request: &TranslationRequest) -> Result<Translated> {

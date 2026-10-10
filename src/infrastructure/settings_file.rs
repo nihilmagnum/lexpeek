@@ -5,9 +5,10 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::application::interface::InterfaceLanguageSettings;
 use crate::application::languages::LanguageSetupRepository;
 use crate::application::translators::TranslatorSettings;
-use crate::domain::language::{Language, LanguageCode, LanguageSetup};
+use crate::domain::language::{CustomLanguage, LanguageCode, LanguageSetup};
 
 #[derive(Serialize, Deserialize)]
 struct StoredLanguage {
@@ -22,6 +23,7 @@ struct StoredSettings {
     #[serde(default)]
     custom_languages: Vec<StoredLanguage>,
     translator: Option<String>,
+    interface_language: Option<String>,
 }
 
 /// lexpeek settings in a JSON file.
@@ -57,7 +59,8 @@ impl LanguageSetupRepository for SettingsFile {
         let invalid = || format!("{} has an invalid language", self.path.display());
         let mut custom = Vec::new();
         for language in &stored.custom_languages {
-            custom.push(Language::custom(LanguageCode::parse(&language.code)?, &language.name).with_context(invalid)?);
+            let code = LanguageCode::parse(&language.code).with_context(invalid)?;
+            custom.push(CustomLanguage::new(code, &language.name).with_context(invalid)?);
         }
         let code = |code: &Option<String>| code.as_deref().map(LanguageCode::parse).transpose();
         let native = code(&stored.native_language).with_context(invalid)?;
@@ -91,22 +94,38 @@ impl TranslatorSettings for SettingsFile {
     }
 }
 
+impl InterfaceLanguageSettings for SettingsFile {
+    fn interface_language(&self) -> Result<Option<LanguageCode>> {
+        let code = self.stored()?.interface_language;
+        let invalid = || format!("{} has an invalid interface language", self.path.display());
+        Ok(code.as_deref().map(LanguageCode::parse).transpose().with_context(invalid)?)
+    }
+
+    fn set_interface_language(&self, code: Option<&LanguageCode>) -> Result<()> {
+        let mut stored = self.stored()?;
+        stored.interface_language = code.map(LanguageCode::to_string);
+        self.store(&stored)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn keeps_pair_with_custom_language_and_translator() {
+    fn keeps_pair_with_custom_language_translator_and_interface_language() {
         let directory = tempfile::tempdir().unwrap();
         let settings = SettingsFile::new(directory.path().join("settings.json"));
         let mut setup = settings.load().unwrap();
         let georgian = LanguageCode::parse("ka").unwrap();
-        setup.add(Language::custom(georgian.clone(), "Georgian").unwrap()).unwrap();
+        setup.add(CustomLanguage::new(georgian.clone(), "Georgian").unwrap()).unwrap();
         setup.choose(&LanguageCode::parse("ru").unwrap(), &georgian).unwrap();
 
         settings.set_translator("yandex").unwrap();
+        settings.set_interface_language(Some(&LanguageCode::parse("en").unwrap())).unwrap();
         settings.save(&setup).unwrap();
         assert_eq!(settings.load().unwrap().pair(), setup.pair());
         assert_eq!(settings.translator().unwrap().as_deref(), Some("yandex"));
+        assert_eq!(settings.interface_language().unwrap(), LanguageCode::parse("en").ok());
     }
 }

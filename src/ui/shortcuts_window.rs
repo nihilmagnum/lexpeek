@@ -3,20 +3,27 @@ use std::sync::Arc;
 
 use gtk::prelude::*;
 use gtk::{gio, glib};
+use rust_i18n::t;
 
 use crate::application::desktop::{GlobalShortcuts, ShortcutSpec};
 use crate::ui::action::Action;
+use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::shortcut_editor::ShortcutEditor;
 
 /// Window with the list of actions and their shortcuts.
 pub struct ShortcutsWindow {
     app: gtk::Application,
+    window: gtk::ApplicationWindow,
     body: gtk::Box,
     shortcuts: Arc<dyn GlobalShortcuts>,
 }
 
 impl ShortcutsWindow {
-    pub fn show(app: &gtk::Application, shortcuts: Arc<dyn GlobalShortcuts>) {
+    pub fn show(
+        app: &gtk::Application,
+        shortcuts: Arc<dyn GlobalShortcuts>,
+        interface_language: Rc<InterfaceLanguage>,
+    ) {
         let body = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(12)
@@ -25,15 +32,11 @@ impl ShortcutsWindow {
             .margin_start(24)
             .margin_end(24)
             .build();
-        let window = gtk::ApplicationWindow::builder()
-            .application(app)
-            .title("Горячие клавиши Lexpeek")
-            .default_width(520)
-            .child(&body)
-            .build();
+        let window = gtk::ApplicationWindow::builder().application(app).default_width(520).child(&body).build();
 
-        let shortcuts_window = Rc::new(Self { app: app.clone(), body, shortcuts });
+        let shortcuts_window = Rc::new(Self { app: app.clone(), window: window.clone(), body, shortcuts });
         shortcuts_window.refresh();
+        interface_language.connect_switched(&shortcuts_window, |window| window.refresh());
         // Handlers hold the window weakly; it lives as long as the GTK window.
         window.connect_destroy(move |_| {
             let _ = &shortcuts_window;
@@ -45,15 +48,17 @@ impl ShortcutsWindow {
         while let Some(child) = self.body.first_child() {
             self.body.remove(&child);
         }
+        self.window.set_title(Some(&t!("shortcuts.title")));
         let status = gtk::Label::builder().xalign(0.0).wrap(true).css_classes(["error"]).build();
         for action in Action::WITH_SHORTCUT {
             if let Some(spec) = action.shortcut() {
                 let accelerator = self.shortcuts.accelerator(&spec);
                 let current = gtk::Label::builder()
-                    .label(accelerator.as_deref().map(Self::label).unwrap_or_else(|| "не задано".into()))
+                    .label(accelerator.as_deref().map(Self::label).unwrap_or_else(|| t!("shortcuts.not_set").into()))
                     .css_classes(["dim-label"])
                     .build();
-                let change = gtk::Button::with_label("Изменить");
+                let change = gtk::Button::with_label(&t!("shortcuts.change"));
+                let edited = spec.clone();
                 change.connect_clicked(glib::clone!(
                     #[weak(rename_to = window)]
                     self,
@@ -63,16 +68,17 @@ impl ShortcutsWindow {
                             window,
                             move || window.refresh()
                         ));
-                        ShortcutEditor::show(&window.app, Arc::clone(&window.shortcuts), spec, on_saved);
+                        ShortcutEditor::show(&window.app, Arc::clone(&window.shortcuts), edited.clone(), on_saved);
                     }
                 ));
-                let clear = gtk::Button::builder().label("Очистить").sensitive(accelerator.is_some()).build();
+                let clear =
+                    gtk::Button::builder().label(t!("shortcuts.clear")).sensitive(accelerator.is_some()).build();
                 clear.connect_clicked(glib::clone!(
                     #[weak(rename_to = window)]
                     self,
                     #[weak]
                     status,
-                    move |_| window.clear(spec, &status)
+                    move |_| window.clear(spec.clone(), &status)
                 ));
                 let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
                 row.append(&gtk::Label::builder().label(action.title()).xalign(0.0).hexpand(true).build());
@@ -95,8 +101,8 @@ impl ShortcutsWindow {
                 let shortcuts = Arc::clone(&window.shortcuts);
                 match gio::spawn_blocking(move || shortcuts.clear(&spec)).await {
                     Ok(Ok(())) => window.refresh(),
-                    Ok(Err(error)) => status.set_label(&format!("Не удалось очистить: {error:#}")),
-                    Err(_) => status.set_label("Очистка аварийно завершилась"),
+                    Ok(Err(error)) => status.set_label(&t!("shortcuts.clear_failed", error = format!("{error:#}"))),
+                    Err(_) => status.set_label(&t!("shortcuts.clear_crashed")),
                 }
             }
         ));

@@ -147,7 +147,7 @@ impl OcrModelStore for TesseractModels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::language::LanguageCode;
+    use crate::domain::language::{CustomLanguage, LanguageCode};
 
     #[test]
     fn installs_custom_language_model_from_file_and_removes_it() {
@@ -155,7 +155,7 @@ mod tests {
         let file = directory.path().join("any-name.traineddata");
         fs::write(&file, b"model").unwrap();
         let models = TesseractModels::new(directory.path().join("tessdata"));
-        let georgian = Language::custom(LanguageCode::parse("ka").unwrap(), "Georgian").unwrap();
+        let georgian = Language::Custom(CustomLanguage::new(LanguageCode::parse("ka").unwrap(), "Georgian").unwrap());
 
         models.install_from_file(&georgian, &file).unwrap();
         assert!(models.is_installed(&georgian));

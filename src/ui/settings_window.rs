@@ -1,24 +1,33 @@
+use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
 use gtk::{gio, glib};
+use rust_i18n::t;
 
 use crate::application::languages::{LanguageStatus, LanguagesError, LanguagesService};
 use crate::application::translators::Translators;
-use crate::domain::language::{Language, LanguageCode, LanguageError};
+use crate::domain::language::{Language, LanguageCode, LanguageError, LanguagePair};
+use crate::ui::interface_language::InterfaceLanguage;
 
-/// Settings window: translator, language pair and recognition models.
+/// Settings window: interface language, translator, language pair and recognition models.
 pub struct SettingsWindow {
     window: gtk::ApplicationWindow,
     body: gtk::Box,
     languages: Arc<LanguagesService>,
     translators: Arc<Translators>,
+    interface_language: Rc<InterfaceLanguage>,
 }
 
 impl SettingsWindow {
-    pub fn show(app: &gtk::Application, languages: Arc<LanguagesService>, translators: Arc<Translators>) {
+    pub fn show(
+        app: &gtk::Application,
+        languages: Arc<LanguagesService>,
+        translators: Arc<Translators>,
+        interface_language: Rc<InterfaceLanguage>,
+    ) {
         let body = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(10)
@@ -29,14 +38,15 @@ impl SettingsWindow {
             .build();
         let window = gtk::ApplicationWindow::builder()
             .application(app)
-            .title("Настройки Lexpeek")
             .default_width(460)
             .default_height(640)
             .child(&gtk::ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).child(&body).build())
             .build();
 
-        let settings_window = Rc::new(Self { window: window.clone(), body, languages, translators });
+        let settings_window =
+            Rc::new(Self { window: window.clone(), body, languages, translators, interface_language });
         settings_window.refresh();
+        settings_window.interface_language.connect_switched(&settings_window, |window| window.refresh_later());
         // Handlers hold the window weakly; it lives as long as the GTK window.
         window.connect_destroy(move |_| {
             let _ = &settings_window;
@@ -48,47 +58,56 @@ impl SettingsWindow {
         while let Some(child) = self.body.first_child() {
             self.body.remove(&child);
         }
+        self.window.set_title(Some(&t!("settings.title")));
         let status = gtk::Label::builder().xalign(0.0).wrap(true).css_classes(["error"]).build();
         let overview = match self.languages.overview() {
             Ok(overview) => overview,
             Err(error) => {
-                status.set_label(&format!("Не удалось прочитать настройки: {error:#}"));
+                status.set_label(&t!("settings.read_failed", error = format!("{error:#}")));
                 self.body.append(&status);
                 return;
             }
         };
 
-        self.body.append(&Self::heading("Перевод"));
+        self.body.append(&Self::heading(&t!("settings.interface")));
+        self.body.append(&self.interface_language_choice(&status));
+
+        self.body.append(&Self::heading(&t!("settings.translation")));
         self.body.append(&self.translator_choice(&status));
         let installed: Vec<Language> =
             overview.languages.iter().filter(|status| status.installed).map(|status| status.language.clone()).collect();
         let native = Self::language_choice(&installed, overview.pair.native());
         let foreign = Self::language_choice(&installed, overview.pair.foreign());
-        self.body.append(&Self::row("Мой язык", &native));
-        self.body.append(&Self::row("Второй язык", &foreign));
-        self.body.append(&Self::hint("Текст на своём языке переводится на второй, на любом другом на свой."));
-        for choice in [&native, &foreign] {
-            let installed = installed.clone();
-            choice.connect_selected_notify(glib::clone!(
+        self.body.append(&Self::row(&t!("settings.native_language"), &native));
+        self.body.append(&Self::row(&t!("settings.foreign_language"), &foreign));
+        self.body.append(&Self::hint(&t!("settings.pair_hint")));
+        let save_pair = |choice: &gtk::DropDown, change: fn(&LanguagePair, Language) -> LanguagePair| {
+            let (installed, pair) = (installed.clone(), overview.pair.clone());
+            let choose = glib::clone!(
                 #[weak(rename_to = window)]
                 self,
-                #[weak]
-                native,
-                #[weak]
-                foreign,
-                #[weak]
-                status,
-                move |_| window.choose(&installed, &native, &foreign, &status)
-            ));
-        }
+                #[upgrade_or]
+                Ok(()),
+                move |position: u32| match installed.get(position as usize) {
+                    Some(language) => window.choose(&change(&pair, language.clone())),
+                    None => Ok(()),
+                }
+            );
+            Self::save_selection(choice, &status, choose);
+        };
+        save_pair(&native, LanguagePair::with_native);
+        save_pair(&foreign, LanguagePair::with_foreign);
         self.body.append(&status);
 
-        self.body.append(&Self::heading("Распознавание"));
+        self.body.append(&Self::heading(&t!("settings.recognition")));
         for language_status in &overview.languages {
             self.body.append(&self.model_row(language_status, &status));
         }
-        let add =
-            gtk::Button::builder().label("Добавить язык из файла…").halign(gtk::Align::Start).margin_top(8).build();
+        let add = gtk::Button::builder()
+            .label(t!("settings.add_from_file"))
+            .halign(gtk::Align::Start)
+            .margin_top(8)
+            .build();
         add.connect_clicked(glib::clone!(
             #[weak(rename_to = window)]
             self,
@@ -99,47 +118,73 @@ impl SettingsWindow {
         self.body.append(&add);
     }
 
+    /// The first item of the list keeps the interface in the system language.
+    fn interface_language_choice(&self, status: &gtk::Label) -> gtk::Box {
+        let chosen = self.interface_language.chosen().unwrap_or_else(|error| {
+            status.set_label(&t!("settings.read_failed", error = format!("{error:#}")));
+            None
+        });
+        let translations = InterfaceLanguage::translations();
+        let endonyms = translations.iter().map(|translation| translation.endonym.clone());
+        let names: Vec<String> = [t!("settings.system_language").into_owned()].into_iter().chain(endonyms).collect();
+        let choice = Self::drop_down(&names);
+        let position = chosen.and_then(|code| translations.iter().position(|translation| translation.code == code));
+        choice.set_selected(position.map_or(0, |position| position as u32 + 1));
+        let interface_language = Rc::clone(&self.interface_language);
+        Self::save_selection(&choice, status, move |position| {
+            let selected = (position as usize).checked_sub(1).and_then(|index| translations.get(index));
+            interface_language.choose(selected.map(|translation| &translation.code))
+        });
+        Self::row(&t!("settings.interface_language"), &choice)
+    }
+
     fn translator_choice(&self, status: &gtk::Label) -> gtk::Box {
-        let options = self.translators.options();
-        let names: Vec<&str> = options.iter().map(|option| option.name).collect();
-        let choice = gtk::DropDown::from_strings(&names);
+        let ids = self.translators.ids();
+        let names: Vec<String> = ids.iter().map(|id| t!(format!("translators.{id}")).into_owned()).collect();
+        let choice = Self::drop_down(&names);
         let selected = self.translators.selected().ok().map(|translator| translator.id());
-        if let Some(position) = options.iter().position(|option| Some(option.id) == selected) {
+        if let Some(position) = ids.iter().position(|id| Some(*id) == selected) {
             choice.set_selected(position as u32);
         }
         let translators = Arc::clone(&self.translators);
+        Self::save_selection(&choice, status, move |position| match ids.get(position as usize) {
+            Some(id) => translators.select(id),
+            None => Ok(()),
+        });
+        Self::row(&t!("settings.translator"), &choice)
+    }
+
+    fn choose(self: &Rc<Self>, pair: &LanguagePair) -> anyhow::Result<()> {
+        self.languages.choose(pair.native().code(), pair.foreign().code())?;
+        self.refresh_later();
+        Ok(())
+    }
+
+    /// Saves every new selection of the list; one that could not be saved is taken back, so the list
+    /// shows what is saved.
+    fn save_selection(choice: &gtk::DropDown, status: &gtk::Label, save: impl Fn(u32) -> anyhow::Result<()> + 'static) {
+        let saved = Cell::new(choice.selected());
         choice.connect_selected_notify(glib::clone!(
             #[weak]
             status,
             move |choice| {
-                let Some(option) = options.get(choice.selected() as usize) else {
+                let selected = choice.selected();
+                if selected == saved.get() {
                     return;
-                };
-                if let Err(error) = translators.select(option.id) {
-                    status.set_label(&format!("Не удалось сохранить: {}", Self::describe(&error)));
+                }
+                match save(selected) {
+                    Ok(()) => saved.set(selected),
+                    Err(error) => {
+                        status.set_label(&t!("settings.save_failed", error = Self::describe(&error)));
+                        choice.set_selected(saved.get());
+                    }
                 }
             }
         ));
-        Self::row("Переводчик", &choice)
     }
 
-    fn choose(
-        self: &Rc<Self>,
-        installed: &[Language],
-        native: &gtk::DropDown,
-        foreign: &gtk::DropDown,
-        status: &gtk::Label,
-    ) {
-        let (Some(native), Some(foreign)) =
-            (installed.get(native.selected() as usize), installed.get(foreign.selected() as usize))
-        else {
-            return;
-        };
-        if let Err(error) = self.languages.choose(native.code(), foreign.code()) {
-            status.set_label(&Self::describe(&error));
-            return;
-        }
-        // The window is rebuilt after the handler returns, so as not to remove the list that called it.
+    /// The window is rebuilt after the current handler returns, so as not to remove the list that called it.
+    fn refresh_later(self: &Rc<Self>) {
         glib::idle_add_local_once(glib::clone!(
             #[weak(rename_to = window)]
             self,
@@ -149,9 +194,9 @@ impl SettingsWindow {
 
     fn model_row(self: &Rc<Self>, language_status: &LanguageStatus, status: &gtk::Label) -> gtk::Box {
         let language = language_status.language.clone();
-        let name = language.name().to_owned();
-        if language_status.built_in && !language_status.installed {
-            let download = gtk::Button::with_label("Загрузить");
+        let name = Self::language_name(&language);
+        if language.is_built_in() && !language_status.installed {
+            let download = gtk::Button::with_label(&t!("settings.download"));
             download.connect_clicked(glib::clone!(
                 #[weak(rename_to = window)]
                 self,
@@ -161,10 +206,10 @@ impl SettingsWindow {
             ));
             return Self::row(&name, &download);
         }
-        let remove = gtk::Button::with_label("Удалить");
+        let remove = gtk::Button::with_label(&t!("settings.remove"));
         if language_status.in_pair {
             remove.set_sensitive(false);
-            remove.set_tooltip_text(Some("Язык выбран для перевода"));
+            remove.set_tooltip_text(Some(&t!("settings.chosen_for_translation")));
         }
         remove.connect_clicked(glib::clone!(
             #[weak(rename_to = window)]
@@ -178,9 +223,9 @@ impl SettingsWindow {
 
     fn download(self: &Rc<Self>, button: &gtk::Button, language: Language, status: &gtk::Label) {
         button.set_sensitive(false);
-        button.set_label("Загрузка…");
+        button.set_label(&t!("settings.downloading"));
         let languages = Arc::clone(&self.languages);
-        let name = language.name().to_owned();
+        let name = Self::language_name(&language);
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = window)]
             self,
@@ -192,11 +237,12 @@ impl SettingsWindow {
                 match gio::spawn_blocking(move || languages.download(&language)).await {
                     Ok(Ok(())) => window.refresh(),
                     Ok(Err(error)) => {
-                        status.set_label(&format!("Не удалось загрузить {name}: {}", Self::describe(&error)));
-                        button.set_label("Загрузить");
+                        let error = Self::describe(&error);
+                        status.set_label(&t!("settings.download_failed", language = name, error = error));
+                        button.set_label(&t!("settings.download"));
                         button.set_sensitive(true);
                     }
-                    Err(_) => status.set_label("Загрузка аварийно завершилась"),
+                    Err(_) => status.set_label(&t!("settings.download_crashed")),
                 }
             }
         ));
@@ -206,19 +252,20 @@ impl SettingsWindow {
         match self.languages.remove(language) {
             Ok(()) => self.refresh(),
             Err(error) => {
-                status.set_label(&format!("Не удалось удалить {}: {}", language.name(), Self::describe(&error)))
+                let name = Self::language_name(language);
+                status.set_label(&t!("settings.remove_failed", language = name, error = Self::describe(&error)))
             }
         }
     }
 
     fn pick_model_file(self: &Rc<Self>, status: &gtk::Label) {
         let filter = gtk::FileFilter::new();
-        filter.set_name(Some("Модели Tesseract"));
+        filter.set_name(Some(&t!("settings.models_filter")));
         filter.add_pattern("*.traineddata");
         let filters = gio::ListStore::new::<gtk::FileFilter>();
         filters.append(&filter);
         let dialog =
-            gtk::FileDialog::builder().title("Модель распознавания языка").filters(&filters).modal(true).build();
+            gtk::FileDialog::builder().title(t!("settings.model_dialog")).filters(&filters).modal(true).build();
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = window)]
             self,
@@ -236,11 +283,14 @@ impl SettingsWindow {
     /// Asks for the name and code of the language of the chosen model.
     fn describe_language(self: &Rc<Self>, file: PathBuf, status: &gtk::Label) {
         let stem = file.file_stem().unwrap_or_default().to_string_lossy().into_owned();
-        let name = gtk::Entry::builder().placeholder_text("Грузинский").hexpand(true).build();
+        let name = gtk::Entry::builder().placeholder_text(t!("settings.language_name_example")).hexpand(true).build();
         let code = gtk::Entry::builder().text(stem).hexpand(true).build();
         let error = gtk::Label::builder().xalign(0.0).wrap(true).css_classes(["error"]).build();
-        let add =
-            gtk::Button::builder().label("Добавить").halign(gtk::Align::End).css_classes(["suggested-action"]).build();
+        let add = gtk::Button::builder()
+            .label(t!("settings.add"))
+            .halign(gtk::Align::End)
+            .css_classes(["suggested-action"])
+            .build();
 
         let form = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -250,15 +300,13 @@ impl SettingsWindow {
             .margin_start(24)
             .margin_end(24)
             .build();
-        form.append(&Self::row("Название", &name));
-        form.append(&Self::row("Код языка", &code));
-        form.append(&Self::hint(
-            "Двухбуквенный код ISO 639-1, по нему переводчик понимает язык: ka грузинский, hy армянский, he иврит.",
-        ));
+        form.append(&Self::row(&t!("settings.language_name"), &name));
+        form.append(&Self::row(&t!("settings.language_code"), &code));
+        form.append(&Self::hint(&t!("settings.language_code_hint")));
         form.append(&error);
         form.append(&add);
         let dialog = gtk::Window::builder()
-            .title("Новый язык")
+            .title(t!("settings.new_language"))
             .transient_for(&self.window)
             .modal(true)
             .default_width(420)
@@ -288,7 +336,7 @@ impl SettingsWindow {
                         status.set_label("");
                         window.refresh();
                     }
-                    Err(message) => error.set_label(&format!("Не удалось добавить: {}", Self::describe(&message))),
+                    Err(message) => error.set_label(&t!("settings.add_failed", error = Self::describe(&message))),
                 }
             }
         ));
@@ -296,8 +344,8 @@ impl SettingsWindow {
     }
 
     fn language_choice(installed: &[Language], selected: &Language) -> gtk::DropDown {
-        let names: Vec<&str> = installed.iter().map(Language::name).collect();
-        let choice = gtk::DropDown::from_strings(&names);
+        let names: Vec<String> = installed.iter().map(Self::language_name).collect();
+        let choice = Self::drop_down(&names);
         if let Some(position) = installed.iter().position(|language| language == selected) {
             choice.set_selected(position as u32);
         }
@@ -307,22 +355,36 @@ impl SettingsWindow {
     /// User-friendly explanation of an error; unexpected errors are shown as is.
     fn describe(error: &anyhow::Error) -> String {
         if let Some(error) = error.downcast_ref::<LanguageError>() {
-            return match error {
-                LanguageError::InvalidCode(_) => "код языка должен состоять из 2–8 латинских букв".to_owned(),
-                LanguageError::EmptyName => "укажите название языка".to_owned(),
-                LanguageError::AlreadyInCatalog(code) => format!("язык с кодом {code} уже есть"),
-                LanguageError::Unknown(code) => format!("языка с кодом {code} нет в списке"),
-                LanguageError::SameLanguagesInPair => "языки должны различаться".to_owned(),
-                LanguageError::ChosenForTranslation(_) => "язык выбран для перевода".to_owned(),
+            let description = match error {
+                LanguageError::InvalidCode(_) => t!("errors.invalid_code"),
+                LanguageError::EmptyName => t!("errors.empty_name"),
+                LanguageError::AlreadyInCatalog(code) => t!("errors.already_in_catalog", code = code),
+                LanguageError::Unknown(code) => t!("errors.unknown_language", code = code),
+                LanguageError::SameLanguagesInPair => t!("errors.same_languages"),
+                LanguageError::ChosenForTranslation(_) => t!("errors.chosen_for_translation"),
             };
+            return description.into_owned();
         }
         if let Some(error) = error.downcast_ref::<LanguagesError>() {
-            return match error {
-                LanguagesError::ModelMissing(code) => format!("сначала загрузите модель распознавания для {code}"),
-                LanguagesError::NotDownloadable(_) => "модель этого языка можно добавить только из файла".to_owned(),
+            let description = match error {
+                LanguagesError::ModelMissing(code) => t!("errors.model_missing", code = code),
+                LanguagesError::NotDownloadable(_) => t!("errors.not_downloadable"),
             };
+            return description.into_owned();
         }
         format!("{error:#}")
+    }
+
+    /// Built-in languages are named in the interface language, added ones the way the user named them.
+    fn language_name(language: &Language) -> String {
+        match language {
+            Language::BuiltIn(language) => t!(format!("languages.{}", language.code())).into_owned(),
+            Language::Custom(language) => language.name().to_owned(),
+        }
+    }
+
+    fn drop_down(names: &[String]) -> gtk::DropDown {
+        gtk::DropDown::from_strings(&names.iter().map(String::as_str).collect::<Vec<_>>())
     }
 
     fn row(title: &str, control: &impl IsA<gtk::Widget>) -> gtk::Box {

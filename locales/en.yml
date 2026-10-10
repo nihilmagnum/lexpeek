@@ -1,0 +1,112 @@
+_version: 1
+endonym: English
+
+action:
+  capture_area: Translate Screen Area
+  translate_selection: Translate Selected Text
+  copy_translation: Copy Translation of Selection
+  replace_selection: Replace Selection with Translation
+  settings: Preferences…
+  shortcuts: Keyboard Shortcuts…
+  quit: Quit
+
+tray:
+  autostart: Start at Login
+
+notification:
+  selection_failed: Lexpeek could not translate the selected text
+
+reading:
+  recognizing: Recognizing…
+  recognition_failed: "Could not recognize text: %{error}"
+  recognition_crashed: Recognition crashed
+  nothing_recognized: No text recognized
+  reading_selection_failed: "Could not read the selection: %{error}"
+  reading_selection_crashed: Reading the selection crashed
+  no_selection: No text is selected
+  translating: Translating…
+  translation_failed: "Could not translate: %{error}"
+  translation_crashed: Translation crashed
+  speak_original: Speak original
+  speak_translation: Speak translation
+  speech_failed: "Could not speak: %{error}"
+  speech_crashed: Speech crashed
+  definitions: Definitions
+  examples: Examples
+  quoted_example: "“%{example}”"
+  synonyms: "Synonyms: %{synonyms}"
+
+settings:
+  title: Lexpeek Preferences
+  read_failed: "Could not read preferences: %{error}"
+  save_failed: "Could not save: %{error}"
+  interface: Interface
+  interface_language: Language
+  system_language: System default
+  translation: Translation
+  translator: Translator
+  native_language: My language
+  foreign_language: Second language
+  pair_hint: Text in your language is translated into the second one, text in any other language into yours.
+  recognition: Text Recognition
+  download: Download
+  downloading: Downloading…
+  download_failed: "Could not download %{language}: %{error}"
+  download_crashed: Download crashed
+  remove: Remove
+  remove_failed: "Could not remove %{language}: %{error}"
+  chosen_for_translation: The language is chosen for translation
+  add_from_file: Add Language from File…
+  models_filter: Tesseract models
+  model_dialog: Language Recognition Model
+  new_language: New Language
+  language_name: Name
+  language_name_example: Georgian
+  language_code: Language code
+  language_code_hint: "Two-letter ISO 639-1 code the translator identifies the language by: ka Georgian, hy Armenian, he Hebrew."
+  add: Add
+  add_failed: "Could not add: %{error}"
+
+errors:
+  invalid_code: the language code must be 2 to 8 Latin letters
+  empty_name: enter the language name
+  already_in_catalog: a language with code %{code} already exists
+  unknown_language: there is no language with code %{code}
+  same_languages: the languages must differ
+  chosen_for_translation: the language is chosen for translation
+  model_missing: download the recognition model for %{code} first
+  not_downloadable: the model of this language can only be added from a file
+
+shortcuts:
+  title: Lexpeek Keyboard Shortcuts
+  not_set: not set
+  change: Change
+  clear: Clear
+  clear_failed: "Could not clear: %{error}"
+  clear_crashed: Clearing crashed
+  editor_title: Lexpeek Shortcut
+  press_new: Press a new key combination
+  cancel_hint: Esc to cancel
+  modifier_required: Ctrl, Alt or Super is required
+  saving: Saving %{shortcut}…
+  save_failed: "Could not save: %{error}"
+  save_crashed: Saving crashed
+
+languages:
+  ru: Russian
+  en: English
+  de: German
+  fr: French
+  es: Spanish
+  it: Italian
+  pt: Portuguese
+  uk: Ukrainian
+  pl: Polish
+  tr: Turkish
+  ja: Japanese
+  zh: Chinese
+  ko: Korean
+
+translators:
+  google: Google Translate
+  yandex: Yandex Translate

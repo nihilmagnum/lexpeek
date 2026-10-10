@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use thiserror::Error;
 
-use crate::domain::language::{Language, LanguageCatalog, LanguageCode, LanguageError, LanguagePair, LanguageSetup};
+use crate::domain::language::{CustomLanguage, Language, LanguageCode, LanguageError, LanguagePair, LanguageSetup};
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum LanguagesError {
@@ -30,7 +30,6 @@ pub trait OcrModelStore: Send + Sync {
 
 pub struct LanguageStatus {
     pub language: Language,
-    pub built_in: bool,
     pub installed: bool,
     pub in_pair: bool,
 }
@@ -57,10 +56,9 @@ impl LanguagesService {
             .catalog()
             .languages()
             .map(|language| LanguageStatus {
-                language: language.clone(),
-                built_in: LanguageCatalog::is_built_in(language),
-                installed: self.models.is_installed(language),
-                in_pair: setup.pair().contains(language),
+                installed: self.models.is_installed(&language),
+                in_pair: setup.pair().contains(&language),
+                language,
             })
             .collect();
         Ok(LanguagesOverview { pair: setup.pair().clone(), languages })
@@ -79,7 +77,7 @@ impl LanguagesService {
     }
 
     pub fn download(&self, language: &Language) -> Result<()> {
-        if !LanguageCatalog::is_built_in(language) {
+        if !language.is_built_in() {
             return Err(LanguagesError::NotDownloadable(language.code().clone()).into());
         }
         self.models.download(language)
@@ -99,21 +97,21 @@ impl LanguagesService {
     pub fn add_from_file(&self, file: &Path, code: &LanguageCode, name: &str) -> Result<()> {
         let mut setup = self.language_setups.load()?;
         if let Some(known) = setup.catalog().by_code(code) {
-            if !LanguageCatalog::is_built_in(known) {
+            if !known.is_built_in() {
                 return Err(LanguageError::AlreadyInCatalog(code.clone()).into());
             }
-            return self.models.install_from_file(known, file);
+            return self.models.install_from_file(&known, file);
         }
-        let language = Language::custom(code.clone(), name)?;
+        let language = CustomLanguage::new(code.clone(), name)?;
         setup.add(language.clone())?;
-        self.models.install_from_file(&language, file)?;
+        self.models.install_from_file(&Language::Custom(language), file)?;
         self.language_setups.save(&setup)
     }
 
     /// Downloads missing models of the pair, for example on first launch.
     pub fn download_pair_models(&self) -> Result<()> {
         for language in self.language_setups.load()?.pair().languages() {
-            if LanguageCatalog::is_built_in(&language) && !self.models.is_installed(&language) {
+            if language.is_built_in() && !self.models.is_installed(&language) {
                 self.models.download(&language)?;
             }
         }

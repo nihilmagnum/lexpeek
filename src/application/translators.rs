@@ -13,8 +13,9 @@ pub struct TranslationRequest<'a> {
     pub target: &'a Language,
     /// Most likely language of the text: helps to detect the language of a short text.
     pub likely_source: &'a Language,
-    /// Language of the part-of-speech labels and other notes in the dictionary article.
-    pub interface: &'a Language,
+    /// Language of the part-of-speech labels and other notes in the dictionary article;
+    /// without it the article is not needed.
+    pub labels_language: Option<&'a LanguageCode>,
 }
 
 /// Language of the original as detected by the translator.
@@ -35,7 +36,6 @@ pub struct Translated {
 pub trait Translator: Send + Sync {
     /// Stable identifier under which the choice of translator is stored in the settings.
     fn id(&self) -> &'static str;
-    fn name(&self) -> &'static str;
     fn translate(&self, request: &TranslationRequest) -> Result<Translated>;
 }
 
@@ -43,12 +43,6 @@ pub trait TranslatorSettings: Send + Sync {
     /// Identifier of the chosen translator, if the user has chosen one.
     fn translator(&self) -> Result<Option<String>>;
     fn set_translator(&self, id: &str) -> Result<()>;
-}
-
-/// Translator in the choice list.
-pub struct TranslatorOption {
-    pub id: &'static str,
-    pub name: &'static str,
 }
 
 /// Available translators and the one chosen by the user.
@@ -62,11 +56,8 @@ impl Translators {
         Self { available, settings }
     }
 
-    pub fn options(&self) -> Vec<TranslatorOption> {
-        self.available
-            .iter()
-            .map(|translator| TranslatorOption { id: translator.id(), name: translator.name() })
-            .collect()
+    pub fn ids(&self) -> Vec<&'static str> {
+        self.available.iter().map(|translator| translator.id()).collect()
     }
 
     /// Until the user chooses a translator, or if the chosen one is gone, the first in the list is used.

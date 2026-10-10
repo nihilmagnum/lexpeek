@@ -2,10 +2,10 @@ use anyhow::Result;
 use image::RgbaImage;
 
 /// Global shortcut the application requests from the desktop.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShortcutSpec {
     pub id: &'static str,
-    pub description: &'static str,
+    pub description: String,
     /// Suggestion in portal format, for example `CTRL+ALT+R`; the user makes the final choice.
     pub preferred_trigger: &'static str,
 }
@@ -24,6 +24,8 @@ pub trait GlobalShortcuts: Send + Sync {
     fn accelerator(&self, spec: &ShortcutSpec) -> Option<String>;
     fn assign(&self, spec: &ShortcutSpec, accelerator: &str) -> Result<()>;
     fn clear(&self, spec: &ShortcutSpec) -> Result<()>;
+    /// Updates the descriptions the desktop shows for the assigned shortcuts.
+    fn describe(&self, specs: &[ShortcutSpec]) -> Result<()>;
 }
 
 pub trait ScreenCapture: Send + Sync {

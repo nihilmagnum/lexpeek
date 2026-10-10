@@ -4,10 +4,12 @@ use std::sync::Arc;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
+use rust_i18n::t;
 
 use crate::application::selection::SelectionTranslation;
 use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
+use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::reading_card::ReadingCard;
 
 /// Small window with the translation of the selected text.
@@ -32,12 +34,12 @@ impl SelectionPopup {
             let reader = Arc::clone(&selection);
             let message = match gio::spawn_blocking(move || reader.selected_text()).await {
                 Ok(Ok(Some(text))) => {
-                    Self::open(&app, &activation, speech, "Перевожу…").translate(selection, text).await;
+                    Self::open(&app, &activation, speech, &t!("reading.translating")).translate(selection, text).await;
                     return;
                 }
-                Ok(Ok(None)) => "Нет выделенного текста".to_owned(),
-                Ok(Err(error)) => format!("Не удалось прочитать выделение: {error:#}"),
-                Err(_) => "Чтение выделения аварийно завершилось".to_owned(),
+                Ok(Ok(None)) => t!("reading.no_selection"),
+                Ok(Err(error)) => t!("reading.reading_selection_failed", error = format!("{error:#}")),
+                Err(_) => t!("reading.reading_selection_crashed"),
             };
             Self::open(&app, &activation, speech, &message);
         });
@@ -84,10 +86,11 @@ impl SelectionPopup {
     }
 
     async fn translate(&self, selection: Arc<SelectionTranslation>, text: String) {
-        match gio::spawn_blocking(move || selection.read(&text)).await {
+        let labels_language = InterfaceLanguage::current();
+        match gio::spawn_blocking(move || selection.read(&text, &labels_language)).await {
             Ok(Ok(reading)) => self.card.show_reading(&reading),
-            Ok(Err(error)) => self.card.show_message(&format!("Не удалось перевести: {error:#}")),
-            Err(_) => self.card.show_message("Перевод аварийно завершился"),
+            Ok(Err(error)) => self.card.show_message(&t!("reading.translation_failed", error = format!("{error:#}"))),
+            Err(_) => self.card.show_message(&t!("reading.translation_crashed")),
         }
     }
 

@@ -3,6 +3,8 @@ mod domain;
 mod infrastructure;
 mod ui;
 
+rust_i18n::i18n!("locales");
+
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -64,8 +66,8 @@ fn features(directories: &ProjectDirs) -> Result<Features> {
     let available: Vec<Arc<dyn Translator>> =
         vec![Arc::new(GoogleTranslator::new()), Arc::new(YandexTranslator::new())];
     let translators = Arc::new(Translators::new(available, settings.clone()));
-    let reading =
-        Arc::new(TextReading::new(settings, Arc::new(TesseractRecognizer::new(models)), Arc::clone(&translators)));
+    let recognizer = Arc::new(TesseractRecognizer::new(models));
+    let reading = Arc::new(TextReading::new(settings.clone(), recognizer, Arc::clone(&translators)));
     let clipboard = Arc::new(WlClipboard);
     let selection = SelectionTranslation::new(
         clipboard.clone(),
@@ -82,6 +84,7 @@ fn features(directories: &ProjectDirs) -> Result<Features> {
         screen: Arc::new(PortalScreenCapture),
         shortcuts: Arc::new(PortalShortcuts::new(App::ID)),
         autostart: Arc::new(autostart()?),
+        interface_language: settings,
     })
 }
 

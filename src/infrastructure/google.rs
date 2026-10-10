@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::application::translators::{DetectedLanguage, Translated, TranslationRequest, Translator};
 use crate::domain::dictionary::{Definition, DictionaryArticle, Meaning, MeaningTranslation};
-use crate::domain::language::{Language, LanguageCode};
+use crate::domain::language::LanguageCode;
 
 #[derive(Deserialize)]
 struct Response {
@@ -103,8 +103,29 @@ impl GoogleTranslator {
         Self { agent: config.into() }
     }
 
-    fn code(language: &Language) -> &str {
-        match language.code().as_str() {
+    fn fetch(&self, request: &TranslationRequest, source: &str, labels_language: &LanguageCode) -> Result<Translated> {
+        let parameters = [
+            ("client", "dict-chrome-ex"),
+            ("sl", source),
+            ("tl", Self::code(request.target.code())),
+            ("hl", Self::code(labels_language)),
+            ("dj", "1"),
+        ];
+        let data_types = Self::DATA_TYPES.map(|data_type| ("dt", data_type));
+        let response: Response = self
+            .agent
+            .post(Self::ENDPOINT)
+            .query_pairs(parameters.into_iter().chain(data_types))
+            .send_form([("q", request.text.as_str())])
+            .context("Google Translate request failed")?
+            .body_mut()
+            .read_json()
+            .context("Google Translate returned malformed response")?;
+        Ok(Self::translated(response))
+    }
+
+    fn code(code: &LanguageCode) -> &str {
+        match code.as_str() {
             "zh" => "zh-CN",
             code => code,
         }
@@ -180,35 +201,21 @@ impl Translator for GoogleTranslator {
         "google"
     }
 
-    fn name(&self) -> &'static str {
-        "Google Переводчик"
-    }
-
     /// The `hl` parameter sets the language of the labels and also biases language detection, so while the
-    /// language of the original is unknown it carries the likely language of the text.
+    /// language of the original is unknown it carries the likely language of the text. A dictionary article
+    /// labelled in another language then has to be requested again with the detected language of the original.
     fn translate(&self, request: &TranslationRequest) -> Result<Translated> {
-        let (source, interface) = match request.source {
-            Some(source) => (source.as_str(), Self::code(request.interface)),
-            None => ("auto", Self::code(request.likely_source)),
+        let likely = request.likely_source.code();
+        if let Some(source) = request.source {
+            return self.fetch(request, source.as_str(), request.labels_language.unwrap_or(likely));
+        }
+        let detected = self.fetch(request, "auto", likely)?;
+        let missing_labels = request.labels_language.filter(|labels| *labels != likely && !detected.article.is_empty());
+        let (Some(labels_language), Some(source)) = (missing_labels, &detected.source) else {
+            return Ok(detected);
         };
-        let parameters = [
-            ("client", "dict-chrome-ex"),
-            ("sl", source),
-            ("tl", Self::code(request.target)),
-            ("hl", interface),
-            ("dj", "1"),
-        ];
-        let data_types = Self::DATA_TYPES.map(|data_type| ("dt", data_type));
-        let response: Response = self
-            .agent
-            .post(Self::ENDPOINT)
-            .query_pairs(parameters.into_iter().chain(data_types))
-            .send_form([("q", request.text.as_str())])
-            .context("Google Translate request failed")?
-            .body_mut()
-            .read_json()
-            .context("Google Translate returned malformed response")?;
-        Ok(Self::translated(response))
+        let labelled = self.fetch(request, source.code.as_str(), labels_language)?;
+        Ok(Translated { source: detected.source, ..labelled })
     }
 }
 

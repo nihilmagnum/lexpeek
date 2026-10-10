@@ -1,0 +1,112 @@
+_version: 1
+endonym: Русский
+
+action:
+  capture_area: Перевести область экрана
+  translate_selection: Перевести выделенный текст
+  copy_translation: Скопировать перевод выделенного
+  replace_selection: Заменить выделенный текст переводом
+  settings: Настройки…
+  shortcuts: Горячие клавиши…
+  quit: Выйти
+
+tray:
+  autostart: Запускать при входе
+
+notification:
+  selection_failed: Lexpeek не смог перевести выделенный текст
+
+reading:
+  recognizing: Распознаю…
+  recognition_failed: "Не удалось распознать текст: %{error}"
+  recognition_crashed: Распознавание аварийно завершилось
+  nothing_recognized: Текст не распознан
+  reading_selection_failed: "Не удалось прочитать выделение: %{error}"
+  reading_selection_crashed: Чтение выделения аварийно завершилось
+  no_selection: Нет выделенного текста
+  translating: Перевожу…
+  translation_failed: "Не удалось перевести: %{error}"
+  translation_crashed: Перевод аварийно завершился
+  speak_original: Озвучить оригинал
+  speak_translation: Озвучить перевод
+  speech_failed: "Не удалось озвучить: %{error}"
+  speech_crashed: Озвучивание аварийно завершилось
+  definitions: Толкования
+  examples: Примеры
+  quoted_example: "«%{example}»"
+  synonyms: "Синонимы: %{synonyms}"
+
+settings:
+  title: Настройки Lexpeek
+  read_failed: "Не удалось прочитать настройки: %{error}"
+  save_failed: "Не удалось сохранить: %{error}"
+  interface: Интерфейс
+  interface_language: Язык
+  system_language: Как в системе
+  translation: Перевод
+  translator: Переводчик
+  native_language: Мой язык
+  foreign_language: Второй язык
+  pair_hint: Текст на своём языке переводится на второй, на любом другом на свой.
+  recognition: Распознавание
+  download: Загрузить
+  downloading: Загрузка…
+  download_failed: "Не удалось загрузить %{language}: %{error}"
+  download_crashed: Загрузка аварийно завершилась
+  remove: Удалить
+  remove_failed: "Не удалось удалить %{language}: %{error}"
+  chosen_for_translation: Язык выбран для перевода
+  add_from_file: Добавить язык из файла…
+  models_filter: Модели Tesseract
+  model_dialog: Модель распознавания языка
+  new_language: Новый язык
+  language_name: Название
+  language_name_example: Грузинский
+  language_code: Код языка
+  language_code_hint: "Двухбуквенный код ISO 639-1, по нему переводчик понимает язык: ka грузинский, hy армянский, he иврит."
+  add: Добавить
+  add_failed: "Не удалось добавить: %{error}"
+
+errors:
+  invalid_code: код языка должен состоять из 2–8 латинских букв
+  empty_name: укажите название языка
+  already_in_catalog: язык с кодом %{code} уже есть
+  unknown_language: языка с кодом %{code} нет в списке
+  same_languages: языки должны различаться
+  chosen_for_translation: язык выбран для перевода
+  model_missing: сначала загрузите модель распознавания для %{code}
+  not_downloadable: модель этого языка можно добавить только из файла
+
+shortcuts:
+  title: Горячие клавиши Lexpeek
+  not_set: не задано
+  change: Изменить
+  clear: Очистить
+  clear_failed: "Не удалось очистить: %{error}"
+  clear_crashed: Очистка аварийно завершилась
+  editor_title: Горячая клавиша Lexpeek
+  press_new: Нажмите новое сочетание клавиш
+  cancel_hint: Esc — отмена
+  modifier_required: Нужен Ctrl, Alt или Super
+  saving: Сохраняю %{shortcut}…
+  save_failed: "Не удалось сохранить: %{error}"
+  save_crashed: Сохранение аварийно завершилось
+
+languages:
+  ru: Русский
+  en: Английский
+  de: Немецкий
+  fr: Французский
+  es: Испанский
+  it: Итальянский
+  pt: Португальский
+  uk: Украинский
+  pl: Польский
+  tr: Турецкий
+  ja: Японский
+  zh: Китайский
+  ko: Корейский
+
+translators:
+  google: Google Переводчик
+  yandex: Яндекс Переводчик

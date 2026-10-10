@@ -49,24 +49,30 @@ impl fmt::Display for LanguageCode {
     }
 }
 
+/// Language lexpeek knows out of the box.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Language {
-    code: LanguageCode,
-    name: Cow<'static, str>,
+pub struct BuiltInLanguage(LanguageCode);
+
+impl BuiltInLanguage {
+    pub fn code(&self) -> &LanguageCode {
+        &self.0
+    }
 }
 
-impl Language {
-    const fn built_in(code: &'static str, name: &'static str) -> Self {
-        Self { code: LanguageCode::built_in(code), name: Cow::Borrowed(name) }
-    }
+/// Language added by the user.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CustomLanguage {
+    code: LanguageCode,
+    name: String,
+}
 
-    /// Language added by the user.
-    pub fn custom(code: LanguageCode, name: &str) -> Result<Self, LanguageError> {
+impl CustomLanguage {
+    pub fn new(code: LanguageCode, name: &str) -> Result<Self, LanguageError> {
         let name = name.trim();
         if name.is_empty() {
             return Err(LanguageError::EmptyName);
         }
-        Ok(Self { code, name: Cow::Owned(name.to_owned()) })
+        Ok(Self { code, name: name.to_owned() })
     }
 
     pub fn code(&self) -> &LanguageCode {
@@ -78,47 +84,66 @@ impl Language {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Language {
+    BuiltIn(BuiltInLanguage),
+    Custom(CustomLanguage),
+}
+
+impl Language {
+    const fn built_in(code: &'static str) -> Self {
+        Self::BuiltIn(BuiltInLanguage(LanguageCode::built_in(code)))
+    }
+
+    pub fn code(&self) -> &LanguageCode {
+        match self {
+            Language::BuiltIn(language) => language.code(),
+            Language::Custom(language) => language.code(),
+        }
+    }
+
+    pub fn is_built_in(&self) -> bool {
+        matches!(self, Language::BuiltIn(_))
+    }
+}
+
 static BUILT_IN_LANGUAGES: [Language; 13] = [
-    Language::built_in("ru", "Русский"),
-    Language::built_in("en", "Английский"),
-    Language::built_in("de", "Немецкий"),
-    Language::built_in("fr", "Французский"),
-    Language::built_in("es", "Испанский"),
-    Language::built_in("it", "Итальянский"),
-    Language::built_in("pt", "Португальский"),
-    Language::built_in("uk", "Украинский"),
-    Language::built_in("pl", "Польский"),
-    Language::built_in("tr", "Турецкий"),
-    Language::built_in("ja", "Японский"),
-    Language::built_in("zh", "Китайский"),
-    Language::built_in("ko", "Корейский"),
+    Language::built_in("ru"),
+    Language::built_in("en"),
+    Language::built_in("de"),
+    Language::built_in("fr"),
+    Language::built_in("es"),
+    Language::built_in("it"),
+    Language::built_in("pt"),
+    Language::built_in("uk"),
+    Language::built_in("pl"),
+    Language::built_in("tr"),
+    Language::built_in("ja"),
+    Language::built_in("zh"),
+    Language::built_in("ko"),
 ];
 
 /// Built-in languages and those added by the user.
 #[derive(Clone, Debug, Default)]
 pub struct LanguageCatalog {
-    custom: Vec<Language>,
+    custom: Vec<CustomLanguage>,
 }
 
 impl LanguageCatalog {
-    pub fn languages(&self) -> impl Iterator<Item = &Language> {
-        BUILT_IN_LANGUAGES.iter().chain(&self.custom)
+    pub fn languages(&self) -> impl Iterator<Item = Language> + '_ {
+        BUILT_IN_LANGUAGES.iter().cloned().chain(self.custom.iter().cloned().map(Language::Custom))
     }
 
-    pub fn custom(&self) -> &[Language] {
+    pub fn custom(&self) -> &[CustomLanguage] {
         &self.custom
     }
 
-    pub fn by_code(&self, code: &LanguageCode) -> Option<&Language> {
-        self.languages().find(|language| language.code == *code)
+    pub fn by_code(&self, code: &LanguageCode) -> Option<Language> {
+        self.languages().find(|language| language.code() == code)
     }
 
-    pub fn is_built_in(language: &Language) -> bool {
-        BUILT_IN_LANGUAGES.iter().any(|built_in| built_in.code == language.code)
-    }
-
-    fn add(&mut self, language: Language) -> Result<(), LanguageError> {
-        if self.by_code(&language.code).is_some() {
+    fn add(&mut self, language: CustomLanguage) -> Result<(), LanguageError> {
+        if self.by_code(language.code()).is_some() {
             return Err(LanguageError::AlreadyInCatalog(language.code));
         }
         self.custom.push(language);
@@ -126,7 +151,7 @@ impl LanguageCatalog {
     }
 
     fn remove(&mut self, language: &Language) {
-        self.custom.retain(|custom| custom != language);
+        self.custom.retain(|custom| custom.code() != language.code());
     }
 }
 
@@ -153,9 +178,21 @@ impl LanguagePair {
         &self.foreign
     }
 
+    /// Pair with another native language; when it is the foreign one, the languages swap.
+    pub fn with_native(&self, native: Language) -> Self {
+        let foreign = if native == self.foreign { self.native.clone() } else { self.foreign.clone() };
+        Self { native, foreign }
+    }
+
+    /// Pair with another foreign language; when it is the native one, the languages swap.
+    pub fn with_foreign(&self, foreign: Language) -> Self {
+        let native = if foreign == self.native { self.foreign.clone() } else { self.native.clone() };
+        Self { native, foreign }
+    }
+
     /// Text in the native language is translated into the foreign one, text in any other language into the native one.
     pub fn target_for(&self, source: Option<&LanguageCode>) -> &Language {
-        if source == Some(&self.native.code) { &self.foreign } else { &self.native }
+        if source == Some(self.native.code()) { &self.foreign } else { &self.native }
     }
 
     pub fn languages(&self) -> [Language; 2] {
@@ -167,7 +204,7 @@ impl LanguagePair {
     }
 
     pub fn contains_code(&self, code: &LanguageCode) -> bool {
-        self.native.code == *code || self.foreign.code == *code
+        self.native.code() == code || self.foreign.code() == code
     }
 }
 
@@ -187,7 +224,7 @@ pub struct LanguageSetup {
 impl LanguageSetup {
     /// A pair whose language is no longer in the catalog is reset to the default pair.
     pub fn restore(
-        custom: Vec<Language>,
+        custom: Vec<CustomLanguage>,
         native: Option<LanguageCode>,
         foreign: Option<LanguageCode>,
     ) -> Result<Self, LanguageError> {
@@ -195,7 +232,7 @@ impl LanguageSetup {
         for language in custom {
             catalog.add(language)?;
         }
-        let find = |code: Option<LanguageCode>| code.and_then(|code| catalog.by_code(&code).cloned());
+        let find = |code: Option<LanguageCode>| code.and_then(|code| catalog.by_code(&code));
         let pair = match (find(native), find(foreign)) {
             (Some(native), Some(foreign)) => LanguagePair::new(native, foreign).unwrap_or_default(),
             _ => LanguagePair::default(),
@@ -214,18 +251,18 @@ impl LanguageSetup {
     pub fn choose(&mut self, native: &LanguageCode, foreign: &LanguageCode) -> Result<(), LanguageError> {
         let native = self.catalog.by_code(native).ok_or_else(|| LanguageError::Unknown(native.clone()))?;
         let foreign = self.catalog.by_code(foreign).ok_or_else(|| LanguageError::Unknown(foreign.clone()))?;
-        self.pair = LanguagePair::new(native.clone(), foreign.clone())?;
+        self.pair = LanguagePair::new(native, foreign)?;
         Ok(())
     }
 
-    pub fn add(&mut self, language: Language) -> Result<(), LanguageError> {
+    pub fn add(&mut self, language: CustomLanguage) -> Result<(), LanguageError> {
         self.catalog.add(language)
     }
 
     /// A language of the pair cannot be removed; a built-in one stays in the catalog.
     pub fn remove(&mut self, language: &Language) -> Result<(), LanguageError> {
         if self.pair.contains(language) {
-            return Err(LanguageError::ChosenForTranslation(language.code.clone()));
+            return Err(LanguageError::ChosenForTranslation(language.code().clone()));
         }
         self.catalog.remove(language);
         Ok(())
@@ -249,13 +286,23 @@ mod tests {
     }
 
     #[test]
+    fn swaps_languages_when_one_takes_the_place_of_the_other() {
+        let pair = LanguagePair::default();
+        let swapped = pair.with_native(pair.foreign().clone());
+
+        assert_eq!((swapped.native(), swapped.foreign()), (pair.foreign(), pair.native()));
+        assert_eq!(pair.with_foreign(pair.native().clone()), swapped);
+    }
+
+    #[test]
     fn keeps_languages_of_the_pair() {
         let mut setup = LanguageSetup::default();
-        let georgian = Language::custom(code("ka"), "Georgian").unwrap();
+        let georgian = CustomLanguage::new(code("ka"), "Georgian").unwrap();
         setup.add(georgian.clone()).unwrap();
         setup.choose(&code("ru"), &code("ka")).unwrap();
 
-        assert_eq!(setup.remove(&georgian), Err(LanguageError::ChosenForTranslation(code("ka"))));
+        let chosen = Language::Custom(georgian.clone());
+        assert_eq!(setup.remove(&chosen), Err(LanguageError::ChosenForTranslation(code("ka"))));
         assert_eq!(setup.add(georgian), Err(LanguageError::AlreadyInCatalog(code("ka"))));
         assert_eq!(setup.choose(&code("ru"), &code("ru")), Err(LanguageError::SameLanguagesInPair));
     }
