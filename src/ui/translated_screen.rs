@@ -28,7 +28,7 @@ impl TranslatedScreen {
         screenshot: RgbaImage,
         translation: Arc<ScreenTranslation>,
         activation: &Activation,
-    ) {
+    ) -> Rc<ScreenFrame> {
         let frame = ScreenFrame::new(app, screenshot);
         let layer = TranslationLayer::new();
         let status = gtk::Label::builder()
@@ -55,6 +55,7 @@ impl TranslatedScreen {
         });
 
         frame.present(activation);
+        frame
     }
 
     fn close_on_click(self: &Rc<Self>) {

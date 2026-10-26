@@ -59,6 +59,11 @@ impl ScreenFrame {
         &self.layers
     }
 
+    /// Screenshot of all monitors the frame was made from.
+    pub fn screenshot(&self) -> &RgbaImage {
+        &self.screenshot
+    }
+
     pub fn screen(&self) -> Ref<'_, Option<RgbaImage>> {
         self.screen.borrow()
     }

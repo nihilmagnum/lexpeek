@@ -34,7 +34,7 @@ impl Overlay {
         reading: Arc<TextReading>,
         speech: Arc<ReadingSpeech>,
         activation: &Activation,
-    ) {
+    ) -> Rc<ScreenFrame> {
         let frame = ScreenFrame::new(app, screenshot);
         let canvas = gtk::DrawingArea::builder().hexpand(true).vexpand(true).build();
         canvas.set_cursor_from_name(Some("crosshair"));
@@ -70,6 +70,7 @@ impl Overlay {
         });
 
         frame.present(activation);
+        frame
     }
 
     fn connect_input(self: &Rc<Self>) {
