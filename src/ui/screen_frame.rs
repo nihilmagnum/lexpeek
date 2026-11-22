@@ -6,20 +6,22 @@ use gtk::{gdk, glib};
 use image::RgbaImage;
 
 use crate::ui::action::Activation;
+use crate::ui::frozen_screen::Frame;
 
 /// Fullscreen window with a frozen frame of the monitor it is open on; Esc closes it.
 pub struct ScreenFrame {
     window: gtk::ApplicationWindow,
     layers: gtk::Overlay,
     picture: gtk::Picture,
-    screenshot: RgbaImage,
+    /// Screenshot of all monitors the frame was made from.
+    screenshot: Rc<RgbaImage>,
     /// Screenshot of the monitor the frame is open on.
     screen: RefCell<Option<RgbaImage>>,
     on_screen: RefCell<Option<Box<dyn Fn(&RgbaImage)>>>,
 }
 
 impl ScreenFrame {
-    pub fn new(app: &gtk::Application, screenshot: RgbaImage) -> Rc<Self> {
+    pub fn new(app: &gtk::Application, screenshot: Rc<RgbaImage>) -> Rc<Self> {
         let window = gtk::ApplicationWindow::builder().application(app).decorated(false).build();
         let picture = gtk::Picture::builder().content_fit(gtk::ContentFit::Fill).can_shrink(true).build();
         let layers = gtk::Overlay::builder().child(&picture).build();
@@ -59,11 +61,6 @@ impl ScreenFrame {
         &self.layers
     }
 
-    /// Screenshot of all monitors the frame was made from.
-    pub fn screenshot(&self) -> &RgbaImage {
-        &self.screenshot
-    }
-
     pub fn screen(&self) -> Ref<'_, Option<RgbaImage>> {
         self.screen.borrow()
     }
@@ -71,11 +68,6 @@ impl ScreenFrame {
     /// Calls `show` with the screenshot of the monitor once the window is on one.
     pub fn connect_screen(&self, show: impl Fn(&RgbaImage) + 'static) {
         self.on_screen.replace(Some(Box::new(show)));
-    }
-
-    pub fn present(&self, activation: &Activation) {
-        self.window.fullscreen();
-        activation.present(&self.window);
     }
 
     fn close_on_escape(&self) {
@@ -128,5 +120,20 @@ impl ScreenFrame {
         let width = ((f64::from(geometry.width()) * scale) as u32).min(screenshot.width().saturating_sub(x));
         let height = ((f64::from(geometry.height()) * scale) as u32).min(screenshot.height().saturating_sub(y));
         image::imageops::crop_imm(screenshot, x, y, width, height).to_image()
+    }
+}
+
+impl Frame for ScreenFrame {
+    fn present(&self, activation: &Activation) {
+        self.window.fullscreen();
+        activation.present(&self.window);
+    }
+
+    fn close(&self) {
+        self.window.close();
+    }
+
+    fn connect_closed(&self, closed: Box<dyn Fn()>) {
+        self.window.connect_destroy(move |_| closed());
     }
 }

@@ -4,7 +4,7 @@ use rust_i18n::t;
 use crate::application::desktop::ShortcutSpec;
 
 /// How an action was invoked.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Activation {
     token: Option<String>,
 }

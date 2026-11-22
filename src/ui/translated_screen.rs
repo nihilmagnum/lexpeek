@@ -9,6 +9,7 @@ use rust_i18n::t;
 
 use crate::application::screen_translation::ScreenTranslation;
 use crate::ui::action::Activation;
+use crate::ui::frozen_screen::Frame;
 use crate::ui::screen_frame::ScreenFrame;
 use crate::ui::translation_layer::TranslationLayer;
 
@@ -25,7 +26,7 @@ pub struct TranslatedScreen {
 impl TranslatedScreen {
     pub fn show(
         app: &gtk::Application,
-        screenshot: RgbaImage,
+        screenshot: Rc<RgbaImage>,
         translation: Arc<ScreenTranslation>,
         activation: &Activation,
     ) -> Rc<ScreenFrame> {
@@ -49,10 +50,10 @@ impl TranslatedScreen {
             move |image| screen.translate(image)
         ));
         screen.close_on_click();
-        // Other handlers hold the screen weakly; it lives as long as the window.
-        frame.window().connect_destroy(move |_| {
+        // Other handlers hold the screen weakly; it lives as long as the frame.
+        frame.connect_closed(Box::new(move || {
             let _ = &screen;
-        });
+        }));
 
         frame.present(activation);
         frame
@@ -63,7 +64,7 @@ impl TranslatedScreen {
         click.connect_released(glib::clone!(
             #[weak(rename_to = screen)]
             self,
-            move |_, _, _, _| screen.frame.window().close()
+            move |_, _, _, _| screen.frame.close()
         ));
         self.frame.window().add_controller(click);
     }

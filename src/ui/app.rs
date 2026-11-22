@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
-use image::RgbaImage;
 use ksni::TrayMethods;
 use rust_i18n::t;
 
@@ -17,9 +16,9 @@ use crate::application::selection::SelectionTranslation;
 use crate::application::speech::ReadingSpeech;
 use crate::application::translators::Translators;
 use crate::ui::action::{Action, Activation};
+use crate::ui::frozen_screen::{FrozenScreen, ScreenMode};
 use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::overlay::Overlay;
-use crate::ui::screen_frame::ScreenFrame;
 use crate::ui::selection_popup::SelectionPopup;
 use crate::ui::settings_window::SettingsWindow;
 use crate::ui::shortcuts_window::ShortcutsWindow;
@@ -40,27 +39,17 @@ pub struct Features {
     pub interface_language: Arc<dyn InterfaceLanguageSettings>,
 }
 
-/// Screen frame on display and the action that opened it.
-#[derive(Clone)]
-struct OpenFrame {
-    action: Action,
-    frame: Rc<ScreenFrame>,
-}
-
 /// Background application with an icon in the top bar.
 pub struct App {
     application: gtk::Application,
-    reading: Arc<TextReading>,
-    screen_translation: Arc<ScreenTranslation>,
+    frozen_screen: Rc<FrozenScreen>,
     languages: Arc<LanguagesService>,
     translators: Arc<Translators>,
     selection: Arc<SelectionTranslation>,
     speech: Arc<ReadingSpeech>,
-    screen: Arc<dyn ScreenCapture>,
     shortcuts: Arc<dyn GlobalShortcuts>,
     interface_language: Rc<InterfaceLanguage>,
     tray: RefCell<Option<ksni::Handle<TrayIcon>>>,
-    open_frame: RefCell<Option<OpenFrame>>,
 }
 
 impl App {
@@ -108,17 +97,14 @@ impl App {
         } = features;
         let app = Rc::new(Self {
             application: application.clone(),
-            reading,
-            screen_translation,
+            frozen_screen: Self::frozen_screen(&application, screen, reading, screen_translation, Arc::clone(&speech)),
             languages,
             translators,
             selection,
             speech,
-            screen,
             shortcuts,
             interface_language: Rc::new(InterfaceLanguage::new(interface_language)),
             tray: RefCell::new(None),
-            open_frame: RefCell::new(None),
         });
         // The first instance stays in the background so that later launches reach it immediately.
         let _hold = application.hold();
@@ -141,14 +127,8 @@ impl App {
 
     fn perform(self: &Rc<Self>, action: Action, activation: Activation) {
         match action {
-            Action::CaptureArea => self.capture_screen(action, activation, |app, screenshot, activation| {
-                let (reading, speech) = (Arc::clone(&app.reading), Arc::clone(&app.speech));
-                Overlay::show(&app.application, screenshot, reading, speech, activation)
-            }),
-            Action::TranslateScreen => self.capture_screen(action, activation, |app, screenshot, activation| {
-                let translation = Arc::clone(&app.screen_translation);
-                TranslatedScreen::show(&app.application, screenshot, translation, activation)
-            }),
+            Action::CaptureArea => self.frozen_screen.open(ScreenMode::Area, activation),
+            Action::TranslateScreen => self.frozen_screen.open(ScreenMode::WholeScreen, activation),
             Action::TranslateSelection => {
                 let speech = Arc::clone(&self.speech);
                 SelectionPopup::show(&self.application, Arc::clone(&self.selection), speech, activation)
@@ -170,52 +150,22 @@ impl App {
         }
     }
 
-    /// One screen frame is open at a time: the action that opened it brings it to the front,
-    /// another action replaces it, reusing its screenshot.
-    fn capture_screen(
-        self: &Rc<Self>,
-        action: Action,
-        activation: Activation,
-        show: impl FnOnce(&Self, RgbaImage, &Activation) -> Rc<ScreenFrame> + 'static,
-    ) {
-        // Closing the frame clears open_frame, so it must not stay borrowed.
-        let open = self.open_frame.borrow().clone();
-        if let Some(open) = open {
-            if open.action == action {
-                open.frame.present(&activation);
-            } else {
-                self.show_frame(action, open.frame.screenshot().clone(), &activation, show);
-                open.frame.window().close();
+    fn frozen_screen(
+        application: &gtk::Application,
+        screen: Arc<dyn ScreenCapture>,
+        reading: Arc<TextReading>,
+        screen_translation: Arc<ScreenTranslation>,
+        speech: Arc<ReadingSpeech>,
+    ) -> Rc<FrozenScreen> {
+        let application = application.clone();
+        FrozenScreen::new(screen, move |mode, screenshot, activation| match mode {
+            ScreenMode::Area => {
+                Overlay::show(&application, screenshot, Arc::clone(&reading), Arc::clone(&speech), activation)
             }
-            return;
-        }
-        let app = Rc::clone(self);
-        let screen = Arc::clone(&self.screen);
-        glib::spawn_future_local(async move {
-            match gio::spawn_blocking(move || screen.capture()).await {
-                Ok(Ok(screenshot)) => app.show_frame(action, screenshot, &activation, show),
-                Ok(Err(error)) => eprintln!("lexpeek: {error:#}"),
-                Err(_) => eprintln!("lexpeek: screen capture crashed"),
+            ScreenMode::WholeScreen => {
+                TranslatedScreen::show(&application, screenshot, Arc::clone(&screen_translation), activation)
             }
-        });
-    }
-
-    fn show_frame(
-        self: &Rc<Self>,
-        action: Action,
-        screenshot: RgbaImage,
-        activation: &Activation,
-        show: impl FnOnce(&Self, RgbaImage, &Activation) -> Rc<ScreenFrame>,
-    ) {
-        let frame = show(self, screenshot, activation);
-        frame.window().connect_destroy(glib::clone!(
-            #[weak(rename_to = app)]
-            self,
-            move |window| {
-                app.open_frame.borrow_mut().take_if(|open| open.frame.window() == window);
-            }
-        ));
-        self.open_frame.replace(Some(OpenFrame { action, frame }));
+        })
     }
 
     /// For an action without a window a failure is visible only in a notification.

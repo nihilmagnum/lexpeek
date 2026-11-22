@@ -10,6 +10,7 @@ use rust_i18n::t;
 use crate::application::reading::TextReading;
 use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
+use crate::ui::frozen_screen::Frame;
 use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::reading_card::{Anchor, ReadingCard};
 use crate::ui::screen_frame::ScreenFrame;
@@ -30,7 +31,7 @@ impl Overlay {
 
     pub fn show(
         app: &gtk::Application,
-        screenshot: RgbaImage,
+        screenshot: Rc<RgbaImage>,
         reading: Arc<TextReading>,
         speech: Arc<ReadingSpeech>,
         activation: &Activation,
@@ -64,10 +65,10 @@ impl Overlay {
             move |layers, widget| overlay.card.position(layers, widget, overlay.selection.get()?)
         ));
         overlay.connect_input();
-        // Other handlers hold the overlay weakly; it lives as long as the window.
-        frame.window().connect_destroy(move |_| {
+        // Other handlers hold the overlay weakly; it lives as long as the frame.
+        frame.connect_closed(Box::new(move || {
             let _ = &overlay;
-        });
+        }));
 
         frame.present(activation);
         frame
@@ -112,7 +113,7 @@ impl Overlay {
         };
         let area = Anchor::spanning(start_x, start_y, offset_x, offset_y);
         if area.width < Self::MIN_SELECTION || area.height < Self::MIN_SELECTION {
-            self.frame.window().close();
+            self.frame.close();
             return;
         }
         self.selection.set(Some(area));
