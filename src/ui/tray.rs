@@ -55,7 +55,7 @@ impl ksni::Tray for TrayIcon {
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {
-        self.send(Action::CaptureArea);
+        self.send(Action::TranslateArea);
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {

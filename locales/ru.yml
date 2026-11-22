@@ -2,7 +2,7 @@ _version: 1
 endonym: Русский
 
 action:
-  capture_area: Перевести область экрана
+  translate_area: Перевести область экрана
   translate_screen: Перевести весь экран
   translate_selection: Перевести выделенный текст
   copy_translation: Скопировать перевод выделенного

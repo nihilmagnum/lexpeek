@@ -119,7 +119,7 @@ impl App {
         let skip_activation = Cell::new(true);
         application.connect_activate(move |_| {
             if !skip_activation.replace(false) {
-                app.perform(Action::CaptureArea, Activation::default());
+                app.perform(Action::TranslateArea, Activation::default());
             }
         });
         application.run_with_args::<&str>(&[])
@@ -127,7 +127,7 @@ impl App {
 
     fn perform(self: &Rc<Self>, action: Action, activation: Activation) {
         match action {
-            Action::CaptureArea => self.frozen_screen.open(ScreenMode::Area, activation),
+            Action::TranslateArea => self.frozen_screen.open(ScreenMode::Area, activation),
             Action::TranslateScreen => self.frozen_screen.open(ScreenMode::WholeScreen, activation),
             Action::TranslateSelection => {
                 let speech = Arc::clone(&self.speech);

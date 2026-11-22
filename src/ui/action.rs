@@ -26,7 +26,7 @@ impl Activation {
 /// User action: invoked by a shortcut or from the tray icon menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
-    CaptureArea,
+    TranslateArea,
     TranslateScreen,
     TranslateSelection,
     CopyTranslation,
@@ -39,7 +39,7 @@ pub enum Action {
 impl Action {
     /// Actions that can be assigned a global shortcut.
     pub const WITH_SHORTCUT: [Action; 5] = [
-        Action::CaptureArea,
+        Action::TranslateArea,
         Action::TranslateScreen,
         Action::TranslateSelection,
         Action::CopyTranslation,
@@ -47,7 +47,7 @@ impl Action {
     ];
     /// Tray icon menu items before the toggles.
     pub const IN_MENU: [Action; 7] = [
-        Action::CaptureArea,
+        Action::TranslateArea,
         Action::TranslateScreen,
         Action::TranslateSelection,
         Action::CopyTranslation,
@@ -58,7 +58,7 @@ impl Action {
 
     pub fn title(self) -> String {
         let title = match self {
-            Action::CaptureArea => t!("action.capture_area"),
+            Action::TranslateArea => t!("action.translate_area"),
             Action::TranslateScreen => t!("action.translate_screen"),
             Action::TranslateSelection => t!("action.translate_selection"),
             Action::CopyTranslation => t!("action.copy_translation"),
@@ -71,8 +71,9 @@ impl Action {
     }
 
     pub fn shortcut(self) -> Option<ShortcutSpec> {
+        // The desktop keeps assigned shortcuts by id, so a changed id loses the assignment.
         let (id, preferred_trigger) = match self {
-            Action::CaptureArea => ("capture", "CTRL+ALT+R"),
+            Action::TranslateArea => ("capture", "CTRL+ALT+R"),
             Action::TranslateScreen => ("translate-screen", "CTRL+ALT+S"),
             Action::TranslateSelection => ("translate-selection", "CTRL+ALT+W"),
             Action::CopyTranslation => ("copy-translation", "CTRL+ALT+C"),

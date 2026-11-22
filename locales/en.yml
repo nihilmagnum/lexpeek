@@ -2,7 +2,7 @@ _version: 1
 endonym: English
 
 action:
-  capture_area: Translate Screen Area
+  translate_area: Translate Screen Area
   translate_screen: Translate Whole Screen
   translate_selection: Translate Selected Text
   copy_translation: Copy Translation of Selection
