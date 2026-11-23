@@ -3,6 +3,7 @@ pub mod audio_player;
 pub mod autostart;
 pub mod google;
 pub mod google_speech;
+pub mod http;
 pub mod portal;
 pub mod remote_keyboard;
 pub mod screenshot;

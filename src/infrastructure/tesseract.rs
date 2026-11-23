@@ -12,7 +12,7 @@ use crate::application::reading::TextRecognizer;
 use crate::application::screen_translation::ParagraphRecognizer;
 use crate::domain::language::Language;
 use crate::domain::text::{ScreenArea, ScreenParagraph};
-use crate::infrastructure::atomic_file;
+use crate::infrastructure::{atomic_file, http};
 
 /// Word of the TSV output of Tesseract with its place in the layout of the page.
 struct RecognizedWord {
@@ -234,9 +234,7 @@ impl OcrModelStore for TesseractModels {
 
     fn download(&self, language: &Language) -> Result<()> {
         let url = format!("{}/{}.traineddata", Self::DOWNLOAD_URL, Self::model_name(language));
-        let config = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(300))).build();
-        let agent: ureq::Agent = config.into();
-        let model = agent
+        let model = http::agent(Duration::from_secs(300))
             .get(&url)
             .call()
             .with_context(|| format!("cannot download {url}"))?

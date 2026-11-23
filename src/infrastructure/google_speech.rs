@@ -6,7 +6,7 @@ use crate::application::speech::Speaker;
 use crate::domain::language::LanguageCode;
 use crate::domain::text::Phrase;
 use crate::infrastructure::audio_player::GtkAudioPlayer;
-use crate::infrastructure::google;
+use crate::infrastructure::{google, http};
 
 /// Text-to-speech of Google Translate.
 pub struct GoogleSpeaker {
@@ -20,8 +20,7 @@ impl GoogleSpeaker {
     const MAX_CHUNK: usize = 200;
 
     pub fn new() -> Self {
-        let config = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(15))).build();
-        Self { agent: config.into(), player: GtkAudioPlayer }
+        Self { agent: http::agent(Duration::from_secs(15)), player: GtkAudioPlayer }
     }
 
     fn synthesize(&self, chunk: &str, language: &LanguageCode) -> Result<Vec<u8>> {

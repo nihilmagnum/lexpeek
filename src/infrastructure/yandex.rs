@@ -10,6 +10,7 @@ use crate::application::translators::{
 use crate::domain::dictionary::{DictionaryArticle, Meaning, MeaningTranslation};
 use crate::domain::language::LanguageCode;
 use crate::domain::text::SourceText;
+use crate::infrastructure::http;
 
 #[derive(Deserialize)]
 struct Detection {
@@ -76,8 +77,7 @@ impl YandexTranslator {
     const REQUEST_LIMIT: usize = 10_000;
 
     pub fn new() -> Self {
-        let config = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(10))).build();
-        Self { agent: config.into(), client_id: format!("{}-0-0", Uuid::new_v4().simple()) }
+        Self { agent: http::agent(Duration::from_secs(10)), client_id: format!("{}-0-0", Uuid::new_v4().simple()) }
     }
 
     /// Yandex detects the language more reliably among hinted languages than without a hint.

@@ -9,6 +9,7 @@ use crate::application::translators::{
 };
 use crate::domain::dictionary::{Definition, DictionaryArticle, Meaning, MeaningTranslation};
 use crate::domain::language::LanguageCode;
+use crate::infrastructure::http;
 
 /// Code of the language in Google services, which know Chinese only by its regional variants.
 pub fn code(language: &LanguageCode) -> &str {
@@ -114,8 +115,7 @@ impl GoogleTranslator {
     const DATA_TYPES: [&str; 6] = ["t", "bd", "md", "ex", "ss", "rm"];
 
     pub fn new() -> Self {
-        let config = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(10))).build();
-        Self { agent: config.into() }
+        Self { agent: http::agent(Duration::from_secs(10)) }
     }
 
     fn fetch(&self, request: &TranslationRequest, source: &str, labels_language: &LanguageCode) -> Result<Translated> {
