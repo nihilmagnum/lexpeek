@@ -11,6 +11,7 @@ use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
 use crate::ui::background;
 use crate::ui::interface_language::InterfaceLanguage;
+use crate::ui::keep_alive;
 use crate::ui::reading_card::ReadingCard;
 
 /// Small window with the translation of the selected text.
@@ -73,14 +74,7 @@ impl SelectionPopup {
             move |window| popup.focus_changed(window.is_active())
         ));
         popup.connect_escape();
-        // Handlers hold the window weakly; it lives as long as the GTK window.
-        window.connect_destroy(glib::clone!(
-            #[strong]
-            popup,
-            move |_| {
-                let _ = &popup;
-            }
-        ));
+        keep_alive::until_destroyed(&window, Rc::clone(&popup));
         activation.present(&window);
         popup
     }

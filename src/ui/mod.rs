@@ -3,6 +3,7 @@ pub mod app;
 pub mod background;
 pub mod frozen_screen;
 pub mod interface_language;
+pub mod keep_alive;
 pub mod overlay;
 pub mod reading_card;
 pub mod screen_frame;

@@ -9,6 +9,7 @@ use crate::application::desktop::{GlobalShortcuts, ShortcutSpec};
 use crate::ui::action::Action;
 use crate::ui::background;
 use crate::ui::interface_language::InterfaceLanguage;
+use crate::ui::keep_alive;
 use crate::ui::shortcut_editor::ShortcutEditor;
 
 /// Window with the list of actions and their shortcuts.
@@ -38,10 +39,7 @@ impl ShortcutsWindow {
         let shortcuts_window = Rc::new(Self { app: app.clone(), window: window.clone(), body, shortcuts });
         shortcuts_window.refresh();
         interface_language.connect_switched(&shortcuts_window, |window| window.refresh());
-        // Handlers hold the window weakly; it lives as long as the GTK window.
-        window.connect_destroy(move |_| {
-            let _ = &shortcuts_window;
-        });
+        keep_alive::until_destroyed(&window, shortcuts_window);
         window.present();
     }
 

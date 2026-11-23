@@ -11,6 +11,7 @@ use crate::application::screen_translation::ScreenTranslation;
 use crate::ui::action::Activation;
 use crate::ui::background;
 use crate::ui::frozen_screen::Frame;
+use crate::ui::keep_alive;
 use crate::ui::screen_frame::ScreenFrame;
 use crate::ui::translation_layer::TranslationLayer;
 
@@ -51,10 +52,7 @@ impl TranslatedScreen {
             move |image| screen.translate(image)
         ));
         screen.close_on_click();
-        // Other handlers hold the screen weakly; it lives as long as the frame.
-        frame.connect_closed(Box::new(move || {
-            let _ = &screen;
-        }));
+        keep_alive::until_destroyed(frame.window(), screen);
 
         frame.present(activation);
         frame

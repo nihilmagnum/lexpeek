@@ -12,6 +12,7 @@ use crate::application::translators::Translators;
 use crate::domain::language::{Language, LanguageCode, LanguageError, LanguagePair};
 use crate::ui::background;
 use crate::ui::interface_language::InterfaceLanguage;
+use crate::ui::keep_alive;
 
 /// Settings window: interface language, translator, language pair and recognition models.
 pub struct SettingsWindow {
@@ -48,10 +49,7 @@ impl SettingsWindow {
             Rc::new(Self { window: window.clone(), body, languages, translators, interface_language });
         settings_window.refresh();
         settings_window.interface_language.connect_switched(&settings_window, |window| window.refresh_later());
-        // Handlers hold the window weakly; it lives as long as the GTK window.
-        window.connect_destroy(move |_| {
-            let _ = &settings_window;
-        });
+        keep_alive::until_destroyed(&window, settings_window);
         window.present();
     }
 

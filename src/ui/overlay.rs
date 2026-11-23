@@ -13,6 +13,7 @@ use crate::ui::action::Activation;
 use crate::ui::background;
 use crate::ui::frozen_screen::Frame;
 use crate::ui::interface_language::InterfaceLanguage;
+use crate::ui::keep_alive;
 use crate::ui::reading_card::{Anchor, ReadingCard};
 use crate::ui::screen_frame::ScreenFrame;
 
@@ -66,10 +67,7 @@ impl Overlay {
             move |layers, widget| overlay.card.position(layers, widget, overlay.selection.get()?)
         ));
         overlay.connect_input();
-        // Other handlers hold the overlay weakly; it lives as long as the frame.
-        frame.connect_closed(Box::new(move || {
-            let _ = &overlay;
-        }));
+        keep_alive::until_destroyed(frame.window(), overlay);
 
         frame.present(activation);
         frame
