@@ -10,6 +10,14 @@ use crate::application::translators::{
 use crate::domain::dictionary::{Definition, DictionaryArticle, Meaning, MeaningTranslation};
 use crate::domain::language::LanguageCode;
 
+/// Code of the language in Google services, which know Chinese only by its regional variants.
+pub fn code(language: &LanguageCode) -> &str {
+    match language.as_str() {
+        "zh" => "zh-CN",
+        code => code,
+    }
+}
+
 #[derive(Deserialize)]
 struct Response {
     #[serde(default)]
@@ -114,8 +122,8 @@ impl GoogleTranslator {
         let parameters = [
             ("client", "dict-chrome-ex"),
             ("sl", source),
-            ("tl", Self::code(request.target.code())),
-            ("hl", Self::code(labels_language)),
+            ("tl", code(request.target.code())),
+            ("hl", code(labels_language)),
             ("dj", "1"),
         ];
         let data_types = Self::DATA_TYPES.map(|data_type| ("dt", data_type));
@@ -129,13 +137,6 @@ impl GoogleTranslator {
             .read_json()
             .context("Google Translate returned malformed response")?;
         Ok(Self::translated(response))
-    }
-
-    fn code(code: &LanguageCode) -> &str {
-        match code.as_str() {
-            "zh" => "zh-CN",
-            code => code,
-        }
     }
 
     /// Language code without the region: zh-CN becomes zh.
@@ -227,7 +228,7 @@ impl Translator for GoogleTranslator {
 
     /// The language of each text is detected separately.
     fn translate_batch(&self, request: &BatchTranslationRequest) -> Result<Vec<TranslatedText>> {
-        let parameters = [("client", "dict-chrome-ex"), ("sl", "auto"), ("tl", Self::code(request.target.code()))];
+        let parameters = [("client", "dict-chrome-ex"), ("sl", "auto"), ("tl", code(request.target.code()))];
         let items: Vec<BatchItem> = self
             .agent
             .post(Self::BATCH_ENDPOINT)
