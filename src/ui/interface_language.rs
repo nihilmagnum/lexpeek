@@ -103,6 +103,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::*;
+    use crate::domain::language::{Language, LanguageCatalog};
 
     #[test]
     fn follows_system_language_until_one_is_chosen() {
@@ -123,6 +124,15 @@ mod tests {
         };
         for translation in InterfaceLanguage::translations() {
             assert_eq!(keys(translation.code.as_str()), keys(InterfaceLanguage::FALLBACK), "{}", translation.code);
+        }
+    }
+
+    #[test]
+    fn every_built_in_language_has_a_name() {
+        let messages = crate::_rust_i18n_backend().messages_for_locale(InterfaceLanguage::FALLBACK).unwrap_or_default();
+        for language in LanguageCatalog::default().languages().filter(Language::is_built_in) {
+            let key = format!("languages.{}", language.code());
+            assert!(messages.iter().any(|(name, _)| *name == key), "{key}");
         }
     }
 }

@@ -259,7 +259,7 @@ impl OcrModelStore for TesseractModels {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::language::{CustomLanguage, LanguageCode};
+    use crate::domain::language::{CustomLanguage, LanguageCatalog, LanguageCode};
 
     #[test]
     fn groups_lines_into_paragraphs_and_separates_list_items() {
@@ -297,5 +297,12 @@ mod tests {
 
         models.remove(&georgian).unwrap();
         assert!(!models.is_installed(&georgian));
+    }
+
+    #[test]
+    fn every_built_in_language_has_its_own_model() {
+        for language in LanguageCatalog::default().languages().filter(Language::is_built_in) {
+            assert_ne!(TesseractModels::model_name(&language), language.code().as_str(), "{}", language.code());
+        }
     }
 }
