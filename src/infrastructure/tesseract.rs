@@ -12,6 +12,7 @@ use crate::application::reading::TextRecognizer;
 use crate::application::screen_translation::ParagraphRecognizer;
 use crate::domain::language::Language;
 use crate::domain::text::{ScreenArea, ScreenParagraph};
+use crate::infrastructure::atomic_file;
 
 /// Word of the TSV output of Tesseract with its place in the layout of the page.
 struct RecognizedWord {
@@ -222,12 +223,7 @@ impl TesseractModels {
     }
 
     fn install(&self, language: &Language, model: &[u8]) -> Result<()> {
-        fs::create_dir_all(&self.directory).with_context(|| format!("cannot create {}", self.directory.display()))?;
-        let path = self.path(language);
-        // A partially written file must not look like an installed model.
-        let partial = path.with_extension("part");
-        fs::write(&partial, model).with_context(|| format!("cannot write {}", partial.display()))?;
-        fs::rename(&partial, &path).with_context(|| format!("cannot write {}", path.display()))
+        atomic_file::replace_file(&self.path(language), |partial| fs::write(partial, model))
     }
 
     fn path(&self, language: &Language) -> PathBuf {

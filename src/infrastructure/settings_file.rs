@@ -9,6 +9,7 @@ use crate::application::interface::InterfaceLanguageSettings;
 use crate::application::languages::LanguageSetupRepository;
 use crate::application::translators::TranslatorSettings;
 use crate::domain::language::{CustomLanguage, LanguageCode, LanguageSetup};
+use crate::infrastructure::atomic_file;
 
 #[derive(Serialize, Deserialize)]
 struct StoredLanguage {
@@ -45,11 +46,8 @@ impl SettingsFile {
     }
 
     fn store(&self, stored: &StoredSettings) -> Result<()> {
-        if let Some(directory) = self.path.parent() {
-            fs::create_dir_all(directory).with_context(|| format!("cannot create {}", directory.display()))?;
-        }
         let text = serde_json::to_string_pretty(stored)?;
-        fs::write(&self.path, text).with_context(|| format!("cannot write {}", self.path.display()))
+        atomic_file::replace_file(&self.path, |partial| fs::write(partial, text))
     }
 }
 

@@ -1,3 +1,4 @@
+pub mod atomic_file;
 pub mod audio_player;
 pub mod autostart;
 pub mod google;
