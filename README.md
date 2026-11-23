@@ -1,31 +1,41 @@
+<div align="center">
+
+<img src="data/io.github.nihilmagnum.Lexpeek.svg" width="96" height="96" alt="Lexpeek icon">
+
 # Lexpeek
 
-Screen text translator for GNOME on Wayland. Select an area of the screen or text in any window, press a shortcut and get the translation with a dictionary article, or translate the whole screen at once. It also works where text cannot be copied: in games, images and videos.
+Screen text translator for GNOME on Wayland
+
+[![Latest release](https://img.shields.io/github/v/release/nihilmagnum/lexpeek)](https://github.com/nihilmagnum/lexpeek/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/nihilmagnum/lexpeek)](LICENSE)
+
+</div>
+
+Select an area of the screen or text in any window, press a shortcut and get the translation with a dictionary article, or translate the whole screen at once. Lexpeek reads text from the screen itself, so it also works where text cannot be copied: in games, images and videos.
 
 ## Features
 
-- **Screen area translation.** Text is recognized by Tesseract and translated.
-- **Whole screen translation.** Every paragraph on the screen is replaced with its translation into your language, the way a browser translates a page.
-- **Selected text translation.** A card with the translation, copying the translation to the clipboard, or replacing the selected text with its translation right in the input field.
+- **Screen area translation.** Text in the selected area is recognized by Tesseract.
+- **Whole screen translation.** Every paragraph on the screen is replaced with its translation, the way a browser translates a page.
+- **Selected text translation.** Show the translation in a card, copy it to the clipboard or replace the selected text with it right in the input field.
 - **Dictionary article** for words and short phrases: transcription, translation variants by part of speech, definitions, synonyms, examples.
-- **Choice of translators:** Google Translate and Yandex Translate.
-- **Speech** for the original and the translation with buttons on the card.
+- **Speech** for the original and the translation.
+- **Google Translate or Yandex Translate**, chosen in the preferences.
 - **Language pair with auto-detection:** text in your native language is translated into the second one, text in any other language into your native one.
-- **Recognition languages:** 13 built-in ones whose models are downloaded from the app. Any other language can be added from a `.traineddata` file.
-- **Interface in English and Russian:** follows the system language by default and can be chosen in the preferences.
-- Icon in the top bar, customizable shortcuts, start at login.
+- **Recognition languages:** 13 built-in ones downloadable from the app, plus any other from a `.traineddata` file.
+- **Interface in English and Russian**, following the system language by default.
 
 ## Installation
 
-Requires Ubuntu 26.04 or newer, GNOME on Wayland and the top bar indicator extension (enabled by default in Ubuntu).
+Lexpeek requires Ubuntu 26.04 or newer with GNOME on Wayland and the top bar indicator extension, which Ubuntu enables by default.
 
-Download `lexpeek_*.deb` from the [releases page](https://github.com/nihilmagnum/lexpeek/releases) and install it:
+Download `lexpeek_*.deb` from the [latest release](https://github.com/nihilmagnum/lexpeek/releases/latest) and install it:
 
 ```sh
 sudo apt install ./lexpeek_*.deb
 ```
 
-Lexpeek appears in the application list. On first launch GNOME asks you to choose the shortcuts, and lexpeek downloads the recognition models for Russian and English, the default language pair.
+On first launch GNOME asks you to choose the shortcuts, and Lexpeek downloads the recognition models for English and Russian, the default language pair.
 
 ## Usage
 
@@ -37,28 +47,36 @@ Lexpeek appears in the application list. On first launch GNOME asks you to choos
 | Copy Translation of Selection | `Ctrl+Alt+C` |
 | Replace Selection with Translation | `Ctrl+Alt+V` |
 
-In screen area mode, select the part with text using the mouse; Esc closes the frame. Whole screen translation shows a frozen frame of the screen with the translations drawn over the original paragraphs; text already in your language stays as it is. A click or Esc closes it. The window with the translation of the selection closes on Esc or when you switch to another window. Copying and replacing work without windows, and a notification reports failures. For replacing, GNOME asks once for remote desktop permission.
+- **Screen area:** select the part with text using the mouse; Esc closes the frame.
+- **Whole screen:** text already in your language stays as it is; a click or Esc closes the translation.
+- **Selected text:** the card closes on Esc or when you switch to another window. Copying and replacing work without windows and report failures in a notification. Before the first replacement GNOME asks for remote desktop permission.
 
-Tray icon menu:
-- **Preferences…:** interface language, translator, language pair, downloading and removing recognition models, adding a language from a file.
-- **Keyboard Shortcuts…:** changing and clearing shortcuts.
-- **Start at Login.**
+Preferences, shortcuts and start at login are in the top bar icon menu.
 
-## Data
+## Privacy
+
+Only text leaves your computer: it goes to the chosen translator, and to Google Translate when you play speech. Screenshots are not kept: the file the screenshot portal creates is deleted right after reading, and the image stays in memory only while the frame is open.
+
+Lexpeek grants itself the screenshot permission at startup, because GNOME does not show the permission dialog to background applications.
+
+Lexpeek stores its data in:
 
 | What | Where |
 |---|---|
-| Settings: interface language, language pair, custom languages, translator | `~/.config/lexpeek/settings.json` |
+| Settings | `~/.config/lexpeek/settings.json` |
 | Recognition models | `~/.local/share/lexpeek/tessdata` |
 | Remote desktop permission | `~/.local/share/lexpeek/remote-desktop-token` |
 
-Lexpeek grants itself the screenshot permission at startup: GNOME does not show the permission dialog to background applications.
+## Known limitations
 
-Screenshots are not kept: the file the portal creates is deleted right after reading, and the screenshot itself stays in memory only while the frame is open. Only text is sent to the translator.
+- **Translators.** Google and Yandex are used through unofficial free endpoints without a key. Their owners may restrict or close access.
+- **Changing a shortcut.** It relies on an internal GNOME mechanism and may break after a GNOME update. The shortcuts themselves keep working.
+- **Dictionary article.** Yandex provides no definitions or examples.
+- **Whole screen translation.** It works best on plain backgrounds such as documents, websites and application windows. Text on pictures and small buttons may be missed. Yandex detects one language for the whole screen, so on a screen with several languages it translates worse than Google.
 
 ## Building from source
 
-Requires GNOME 48 or newer, Rust 1.88 or newer and the build packages:
+Building requires GNOME 48 or newer, Rust 1.88 or newer and the build packages:
 
 ```sh
 sudo apt install cargo libgtk-4-dev libtesseract-dev libleptonica-dev clang libclang-dev pkg-config \
@@ -68,38 +86,12 @@ cd lexpeek
 ./install.sh
 ```
 
-The script builds lexpeek, installs it into `~/.cargo/bin` and adds the desktop entry and icon to `~/.local/share`.
+The script installs the binary into `~/.cargo/bin` and the desktop entry and icon into `~/.local/share`.
 
-The `.deb` package is built with `cargo deb` (requires `cargo install cargo-deb`), and the result appears in `target/debian/`. On a `v*` tag GitHub Actions builds the package and attaches it to the release.
+## Contributing
 
-## Architecture
-
-```
-src/
-  domain/          languages, pair and catalog; text; dictionary article
-  application/     use cases (reading and translation, whole screen translation, languages, selected text,
-                   translator choice) and the ports they declare, including desktop ports
-  infrastructure/  Google, Yandex, Tesseract, settings, GNOME portals, wl-clipboard, autostart
-  ui/              GTK: application, frame, card, windows, tray icon, interface language
-  main.rs          dependency wiring
-locales/           interface translations
-```
-
-To add a translator, implement the `Translator` trait in `src/infrastructure/`, add it to the `available` list in `src/main.rs` and its name to `locales/*.yml` under the `translators.<id>` key. The choice in the preferences, language detection and the dictionary article are picked up automatically.
-
-To translate the interface into a new language, copy `locales/en.yml` to `locales/<code>.yml` and translate the strings; the language appears in the preferences automatically. `cargo test` checks that all translations have the same set of strings.
-
-To add an action, add a variant to `Action` (`src/ui/action.rs`) and handle it in `App::perform`. The shortcut and the menu item come from the list of actions.
-
-Tests: `cargo test`.
-
-## Limitations
-
-- **Translators.** Google and Yandex are used through unofficial free endpoints without a key. Their owners may restrict or close access.
-- **Changing a shortcut.** It relies on an internal GNOME mechanism and may break after a GNOME update. The shortcuts themselves keep working.
-- **Dictionary article.** Available only for words and short phrases. Yandex provides no definitions or examples.
-- **Whole screen translation.** It works best on plain backgrounds such as documents, websites and application windows. Text on pictures and small buttons may be missed. Yandex detects one language for the whole screen, so on a screen with several languages it translates worse than Google.
+Bug reports and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) describes the project structure and how to add a translator, an interface language or an action.
 
 ## License
 
-[MIT](LICENSE)
+Lexpeek is released under the [MIT License](LICENSE).
