@@ -326,18 +326,39 @@ impl SettingsWindow {
             code,
             #[weak]
             error,
-            move |_| {
-                let added = LanguageCode::parse(&code.text())
-                    .map_err(anyhow::Error::from)
-                    .and_then(|code| window.languages.add_from_file(&file, &code, &name.text()));
-                match added {
-                    Ok(()) => {
-                        dialog.close();
-                        status.set_label("");
-                        window.refresh();
+            move |add| {
+                let languages = Arc::clone(&window.languages);
+                let (file, code, name) = (file.clone(), code.text().to_string(), name.text().to_string());
+                add.set_sensitive(false);
+                glib::spawn_future_local(glib::clone!(
+                    #[weak]
+                    window,
+                    #[weak]
+                    dialog,
+                    #[weak]
+                    status,
+                    #[weak]
+                    error,
+                    #[weak]
+                    add,
+                    async move {
+                        // A model may weigh tens of megabytes.
+                        let added =
+                            background::run(move || languages.add_from_file(&file, &LanguageCode::parse(&code)?, &name))
+                                .await;
+                        add.set_sensitive(true);
+                        match added {
+                            Ok(()) => {
+                                dialog.close();
+                                status.set_label("");
+                                window.refresh();
+                            }
+                            Err(message) => {
+                                error.set_label(&t!("settings.add_failed", error = Self::describe(&message)))
+                            }
+                        }
                     }
-                    Err(message) => error.set_label(&t!("settings.add_failed", error = Self::describe(&message))),
-                }
+                ));
             }
         ));
         dialog.present();

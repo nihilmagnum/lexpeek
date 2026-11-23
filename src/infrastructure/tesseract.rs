@@ -222,10 +222,6 @@ impl TesseractModels {
         }
     }
 
-    fn install(&self, language: &Language, model: &[u8]) -> Result<()> {
-        atomic_file::replace_file(&self.path(language), |partial| fs::write(partial, model))
-    }
-
     fn path(&self, language: &Language) -> PathBuf {
         self.directory.join(format!("{}.traineddata", Self::model_name(language)))
     }
@@ -249,13 +245,11 @@ impl OcrModelStore for TesseractModels {
             .limit(u64::MAX)
             .read_to_vec()
             .with_context(|| format!("cannot download {url}"))?;
-
-        self.install(language, &model)
+        atomic_file::replace_file(&self.path(language), |partial| fs::write(partial, model))
     }
 
     fn install_from_file(&self, language: &Language, file: &Path) -> Result<()> {
-        let model = fs::read(file).with_context(|| format!("cannot read {}", file.display()))?;
-        self.install(language, &model)
+        atomic_file::replace_file(&self.path(language), |partial| fs::copy(file, partial).map(drop))
     }
 
     fn remove(&self, language: &Language) -> Result<()> {
