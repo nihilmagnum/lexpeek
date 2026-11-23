@@ -7,7 +7,7 @@ use gtk::glib;
 use rust_i18n::t;
 
 use crate::application::selection::SelectionTranslation;
-use crate::application::speech::ReadingSpeech;
+use crate::application::speech::Speaker;
 use crate::ui::action::Activation;
 use crate::ui::background;
 use crate::ui::escape;
@@ -29,7 +29,7 @@ impl SelectionPopup {
     pub fn show(
         app: &gtk::Application,
         selection: Arc<SelectionTranslation>,
-        speech: Arc<ReadingSpeech>,
+        speech: Arc<dyn Speaker>,
         activation: Activation,
     ) {
         let app = app.clone();
@@ -50,7 +50,7 @@ impl SelectionPopup {
     fn open(
         app: &gtk::Application,
         activation: &Activation,
-        speech: Arc<ReadingSpeech>,
+        speech: Arc<dyn Speaker>,
         message: &str,
     ) -> Rc<Self> {
         let card = ReadingCard::new(speech);

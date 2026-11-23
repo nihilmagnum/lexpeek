@@ -5,7 +5,7 @@ use gtk::{gdk, glib, pango};
 use rust_i18n::t;
 
 use crate::application::reading::Reading;
-use crate::application::speech::ReadingSpeech;
+use crate::application::speech::Speaker;
 use crate::domain::dictionary::{Definition, DictionaryArticle, Meaning};
 use crate::domain::text::Phrase;
 use crate::ui::background;
@@ -41,7 +41,7 @@ impl Anchor {
 /// Card with the recognized text, its translation and the dictionary article.
 pub struct ReadingCard {
     card: gtk::ScrolledWindow,
-    speech: Arc<ReadingSpeech>,
+    speech: Arc<dyn Speaker>,
 }
 
 impl ReadingCard {
@@ -53,7 +53,7 @@ impl ReadingCard {
     const SYNONYMS: usize = 6;
     const EXAMPLES: usize = 3;
 
-    pub fn new(speech: Arc<ReadingSpeech>) -> Self {
+    pub fn new(speech: Arc<dyn Speaker>) -> Self {
         let card = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
             .propagate_natural_height(true)
@@ -152,7 +152,7 @@ impl ReadingCard {
         button
     }
 
-    fn speak(button: &gtk::Button, speech: Arc<ReadingSpeech>, phrase: Phrase, tooltip: String) {
+    fn speak(button: &gtk::Button, speech: Arc<dyn Speaker>, phrase: Phrase, tooltip: String) {
         button.set_sensitive(false);
         glib::spawn_future_local(glib::clone!(
             #[weak]

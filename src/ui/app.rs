@@ -13,7 +13,7 @@ use crate::application::languages::LanguagesService;
 use crate::application::reading::TextReading;
 use crate::application::screen_translation::ScreenTranslation;
 use crate::application::selection::SelectionTranslation;
-use crate::application::speech::ReadingSpeech;
+use crate::application::speech::Speaker;
 use crate::application::translators::Translators;
 use crate::ui::action::{Action, Activation};
 use crate::ui::background;
@@ -33,7 +33,7 @@ pub struct Features {
     pub languages: Arc<LanguagesService>,
     pub translators: Arc<Translators>,
     pub selection: Arc<SelectionTranslation>,
-    pub speech: Arc<ReadingSpeech>,
+    pub speech: Arc<dyn Speaker>,
     pub screen: Arc<dyn ScreenCapture>,
     pub shortcuts: Arc<dyn GlobalShortcuts>,
     pub autostart: Arc<dyn LoginAutostart>,
@@ -47,7 +47,7 @@ pub struct App {
     languages: Arc<LanguagesService>,
     translators: Arc<Translators>,
     selection: Arc<SelectionTranslation>,
-    speech: Arc<ReadingSpeech>,
+    speech: Arc<dyn Speaker>,
     shortcuts: Arc<dyn GlobalShortcuts>,
     interface_language: Rc<InterfaceLanguage>,
     tray: RefCell<Option<ksni::Handle<TrayIcon>>>,
@@ -156,7 +156,7 @@ impl App {
         screen: Arc<dyn ScreenCapture>,
         reading: Arc<TextReading>,
         screen_translation: Arc<ScreenTranslation>,
-        speech: Arc<ReadingSpeech>,
+        speech: Arc<dyn Speaker>,
     ) -> Rc<FrozenScreen> {
         let application = application.clone();
         FrozenScreen::new(screen, move |mode, screenshot, activation| match mode {

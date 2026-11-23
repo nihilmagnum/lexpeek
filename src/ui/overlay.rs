@@ -8,7 +8,7 @@ use image::RgbaImage;
 use rust_i18n::t;
 
 use crate::application::reading::TextReading;
-use crate::application::speech::ReadingSpeech;
+use crate::application::speech::Speaker;
 use crate::ui::action::Activation;
 use crate::ui::background;
 use crate::ui::frozen_screen::Frame;
@@ -35,7 +35,7 @@ impl Overlay {
         app: &gtk::Application,
         screenshot: Rc<RgbaImage>,
         reading: Arc<TextReading>,
-        speech: Arc<ReadingSpeech>,
+        speech: Arc<dyn Speaker>,
         activation: &Activation,
     ) -> Rc<ScreenFrame> {
         let frame = ScreenFrame::new(app, screenshot);

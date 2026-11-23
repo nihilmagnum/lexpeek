@@ -16,7 +16,6 @@ use crate::application::languages::LanguagesService;
 use crate::application::reading::TextReading;
 use crate::application::screen_translation::ScreenTranslation;
 use crate::application::selection::SelectionTranslation;
-use crate::application::speech::ReadingSpeech;
 use crate::application::translators::{Translator, Translators};
 use crate::infrastructure::autostart::DesktopEntryAutostart;
 use crate::infrastructure::google::GoogleTranslator;
@@ -83,7 +82,7 @@ fn features(directories: &ProjectDirs) -> Result<Features> {
         languages,
         translators,
         selection: Arc::new(selection),
-        speech: Arc::new(ReadingSpeech::new(Arc::new(GoogleSpeaker::new()))),
+        speech: Arc::new(GoogleSpeaker::new()),
         screen: Arc::new(PortalScreenCapture),
         shortcuts: Arc::new(PortalShortcuts::new(App::ID)),
         autostart: Arc::new(autostart()?),
