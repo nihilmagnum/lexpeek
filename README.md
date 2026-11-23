@@ -13,6 +13,10 @@ Screen text translator for GNOME on Wayland
 
 Select an area of the screen or text in any window, press a shortcut and get the translation with a dictionary article, or translate the whole screen at once. Lexpeek reads text from the screen itself, so it also works where text cannot be copied: in games, images and videos.
 
+<p align="center">
+  <img src="docs/screenshots/dictionary.png" width="640" alt="Dictionary article for a word selected on the screen">
+</p>
+
 ## Features
 
 - **Screen area translation.** Text in the selected area is recognized by Tesseract.
@@ -24,6 +28,10 @@ Select an area of the screen or text in any window, press a shortcut and get the
 - **Language pair with auto-detection:** text in your native language is translated into the second one, text in any other language into your native one.
 - **Recognition languages:** 13 built-in ones downloadable from the app, plus any other from a `.traineddata` file.
 - **Interface in English and Russian**, following the system language by default.
+
+| Screen area | Whole screen |
+|---|---|
+| ![Translation of a dialogue in a game picture](docs/screenshots/area.png) | ![Web page with every paragraph translated in place](docs/screenshots/whole-screen.png) |
 
 ## Installation
 
