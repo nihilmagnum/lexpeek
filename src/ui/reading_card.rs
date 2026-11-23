@@ -1,13 +1,14 @@
 use gtk::prelude::*;
 use std::sync::Arc;
 
-use gtk::{gdk, gio, glib, pango};
+use gtk::{gdk, glib, pango};
 use rust_i18n::t;
 
 use crate::application::reading::Reading;
 use crate::application::speech::ReadingSpeech;
 use crate::domain::dictionary::{Definition, DictionaryArticle, Meaning};
 use crate::domain::text::Phrase;
+use crate::ui::background;
 
 /// Rectangle on the screen next to which the card is placed.
 #[derive(Clone, Copy, Debug)]
@@ -160,14 +161,13 @@ impl ReadingCard {
             #[weak]
             button,
             async move {
-                let spoken = gio::spawn_blocking(move || speech.speak(&phrase)).await;
+                let spoken = background::run(move || speech.speak(&phrase)).await;
                 button.set_sensitive(true);
-                let failure = match spoken {
-                    Ok(Ok(())) => return button.set_tooltip_text(Some(&tooltip)),
-                    Ok(Err(error)) => t!("reading.speech_failed", error = format!("{error:#}")),
-                    Err(_) => t!("reading.speech_crashed"),
+                let tooltip = match spoken {
+                    Ok(()) => tooltip,
+                    Err(error) => t!("reading.speech_failed", error = format!("{error:#}")).into_owned(),
                 };
-                button.set_tooltip_text(Some(&failure));
+                button.set_tooltip_text(Some(&tooltip));
             }
         ));
     }

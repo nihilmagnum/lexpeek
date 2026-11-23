@@ -3,12 +3,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
-use gtk::{gdk, gio, glib};
+use gtk::{gdk, glib};
 use rust_i18n::t;
 
 use crate::application::selection::SelectionTranslation;
 use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
+use crate::ui::background;
 use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::reading_card::ReadingCard;
 
@@ -32,14 +33,13 @@ impl SelectionPopup {
         let app = app.clone();
         glib::spawn_future_local(async move {
             let reader = Arc::clone(&selection);
-            let message = match gio::spawn_blocking(move || reader.selected_text()).await {
-                Ok(Ok(Some(text))) => {
+            let message = match background::run(move || reader.selected_text()).await {
+                Ok(Some(text)) => {
                     Self::open(&app, &activation, speech, &t!("reading.translating")).translate(selection, text).await;
                     return;
                 }
-                Ok(Ok(None)) => t!("reading.no_selection"),
-                Ok(Err(error)) => t!("reading.reading_selection_failed", error = format!("{error:#}")),
-                Err(_) => t!("reading.reading_selection_crashed"),
+                Ok(None) => t!("reading.no_selection"),
+                Err(error) => t!("reading.reading_selection_failed", error = format!("{error:#}")),
             };
             Self::open(&app, &activation, speech, &message);
         });
@@ -87,10 +87,9 @@ impl SelectionPopup {
 
     async fn translate(&self, selection: Arc<SelectionTranslation>, text: String) {
         let labels_language = InterfaceLanguage::current();
-        match gio::spawn_blocking(move || selection.read(&text, &labels_language)).await {
-            Ok(Ok(reading)) => self.card.show_reading(&reading),
-            Ok(Err(error)) => self.card.show_message(&t!("reading.translation_failed", error = format!("{error:#}"))),
-            Err(_) => self.card.show_message(&t!("reading.translation_crashed")),
+        match background::run(move || selection.read(&text, &labels_language)).await {
+            Ok(reading) => self.card.show_reading(&reading),
+            Err(error) => self.card.show_message(&t!("reading.translation_failed", error = format!("{error:#}"))),
         }
     }
 

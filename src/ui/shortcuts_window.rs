@@ -2,11 +2,12 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
-use gtk::{gio, glib};
+use gtk::glib;
 use rust_i18n::t;
 
 use crate::application::desktop::{GlobalShortcuts, ShortcutSpec};
 use crate::ui::action::Action;
+use crate::ui::background;
 use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::shortcut_editor::ShortcutEditor;
 
@@ -99,10 +100,9 @@ impl ShortcutsWindow {
             status,
             async move {
                 let shortcuts = Arc::clone(&window.shortcuts);
-                match gio::spawn_blocking(move || shortcuts.clear(&spec)).await {
-                    Ok(Ok(())) => window.refresh(),
-                    Ok(Err(error)) => status.set_label(&t!("shortcuts.clear_failed", error = format!("{error:#}"))),
-                    Err(_) => status.set_label(&t!("shortcuts.clear_crashed")),
+                match background::run(move || shortcuts.clear(&spec)).await {
+                    Ok(()) => window.refresh(),
+                    Err(error) => status.set_label(&t!("shortcuts.clear_failed", error = format!("{error:#}"))),
                 }
             }
         ));

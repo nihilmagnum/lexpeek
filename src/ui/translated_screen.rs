@@ -3,12 +3,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
-use gtk::{gio, glib};
+use gtk::glib;
 use image::RgbaImage;
 use rust_i18n::t;
 
 use crate::application::screen_translation::ScreenTranslation;
 use crate::ui::action::Activation;
+use crate::ui::background;
 use crate::ui::frozen_screen::Frame;
 use crate::ui::screen_frame::ScreenFrame;
 use crate::ui::translation_layer::TranslationLayer;
@@ -79,18 +80,17 @@ impl TranslatedScreen {
         let image = Arc::new(image.clone());
         let recognized = Arc::clone(&image);
         glib::spawn_future_local(async move {
-            let result = gio::spawn_blocking(move || translation.translate(&recognized)).await;
+            let result = background::run(move || translation.translate(&recognized)).await;
             if screen.generation.get() != generation {
                 return;
             }
             match result {
-                Ok(Ok(paragraphs)) if paragraphs.is_empty() => screen.show_status(&t!("screen.nothing_to_translate")),
-                Ok(Ok(paragraphs)) => {
+                Ok(paragraphs) if paragraphs.is_empty() => screen.show_status(&t!("screen.nothing_to_translate")),
+                Ok(paragraphs) => {
                     screen.status.set_visible(false);
                     screen.layer.show(&image, paragraphs);
                 }
-                Ok(Err(error)) => screen.show_status(&t!("reading.translation_failed", error = format!("{error:#}"))),
-                Err(_) => screen.show_status(&t!("reading.translation_crashed")),
+                Err(error) => screen.show_status(&t!("reading.translation_failed", error = format!("{error:#}"))),
             }
         });
     }

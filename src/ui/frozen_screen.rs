@@ -4,12 +4,13 @@ use std::pin::Pin;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
-use gtk::{gio, glib};
+use anyhow::Result;
+use gtk::glib;
 use image::RgbaImage;
 
 use crate::application::desktop::ScreenCapture;
 use crate::ui::action::Activation;
+use crate::ui::background;
 
 /// Mode in which the frozen screen is open.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,10 +58,7 @@ impl FrozenScreen {
     ) -> Rc<Self> {
         let capture_screen = move || -> Capture {
             let screen_capture = Arc::clone(&screen_capture);
-            Box::pin(async move {
-                let captured = gio::spawn_blocking(move || screen_capture.capture()).await;
-                captured.unwrap_or_else(|_| Err(anyhow!("screen capture crashed")))
-            })
+            Box::pin(background::run(move || screen_capture.capture()))
         };
         Self::with_capture(capture_screen, Box::new(show_frame))
     }
@@ -132,6 +130,8 @@ impl FrozenScreen {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::anyhow;
+
     use super::*;
 
     #[derive(Debug, PartialEq)]

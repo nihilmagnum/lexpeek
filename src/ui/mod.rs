@@ -1,5 +1,6 @@
 pub mod action;
 pub mod app;
+pub mod background;
 pub mod frozen_screen;
 pub mod interface_language;
 pub mod overlay;

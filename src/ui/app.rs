@@ -16,6 +16,7 @@ use crate::application::selection::SelectionTranslation;
 use crate::application::speech::ReadingSpeech;
 use crate::application::translators::Translators;
 use crate::ui::action::{Action, Activation};
+use crate::ui::background;
 use crate::ui::frozen_screen::{FrozenScreen, ScreenMode};
 use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::overlay::Overlay;
@@ -173,13 +174,11 @@ impl App {
         let selection = Arc::clone(&self.selection);
         let application = self.application.clone();
         glib::spawn_future_local(async move {
-            let message = match gio::spawn_blocking(move || work(&selection)).await {
-                Ok(Ok(())) => return,
-                Ok(Err(error)) => format!("{error:#}"),
-                Err(_) => t!("reading.translation_crashed").into_owned(),
+            let Err(error) = background::run(move || work(&selection)).await else {
+                return;
             };
             let notification = gio::Notification::new(&t!("notification.selection_failed"));
-            notification.set_body(Some(&message));
+            notification.set_body(Some(&format!("{error:#}")));
             application.send_notification(None, &notification);
         });
     }
@@ -207,7 +206,7 @@ impl App {
         let shortcuts = Arc::clone(&self.shortcuts);
         let specs = Action::shortcut_specs();
         glib::spawn_future_local(async move {
-            if let Ok(Err(error)) = gio::spawn_blocking(move || shortcuts.describe(&specs)).await {
+            if let Err(error) = background::run(move || shortcuts.describe(&specs)).await {
                 eprintln!("lexpeek: {error:#}");
             }
         });
@@ -217,7 +216,7 @@ impl App {
     fn download_pair_models(&self) {
         let languages = Arc::clone(&self.languages);
         glib::spawn_future_local(async move {
-            if let Ok(Err(error)) = gio::spawn_blocking(move || languages.download_pair_models()).await {
+            if let Err(error) = background::run(move || languages.download_pair_models()).await {
                 eprintln!("lexpeek: {error:#}");
             }
         });

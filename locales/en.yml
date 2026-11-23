@@ -20,18 +20,14 @@ notification:
 reading:
   recognizing: Recognizing…
   recognition_failed: "Could not recognize text: %{error}"
-  recognition_crashed: Recognition crashed
   nothing_recognized: No text recognized
   reading_selection_failed: "Could not read the selection: %{error}"
-  reading_selection_crashed: Reading the selection crashed
   no_selection: No text is selected
   translating: Translating…
   translation_failed: "Could not translate: %{error}"
-  translation_crashed: Translation crashed
   speak_original: Speak original
   speak_translation: Speak translation
   speech_failed: "Could not speak: %{error}"
-  speech_crashed: Speech crashed
   definitions: Definitions
   examples: Examples
   quoted_example: "“%{example}”"
@@ -56,7 +52,6 @@ settings:
   download: Download
   downloading: Downloading…
   download_failed: "Could not download %{language}: %{error}"
-  download_crashed: Download crashed
   remove: Remove
   remove_failed: "Could not remove %{language}: %{error}"
   chosen_for_translation: The language is chosen for translation
@@ -87,14 +82,12 @@ shortcuts:
   change: Change
   clear: Clear
   clear_failed: "Could not clear: %{error}"
-  clear_crashed: Clearing crashed
   editor_title: Lexpeek Shortcut
   press_new: Press a new key combination
   cancel_hint: Esc to cancel
   modifier_required: Ctrl, Alt or Super is required
   saving: Saving %{shortcut}…
   save_failed: "Could not save: %{error}"
-  save_crashed: Saving crashed
 
 languages:
   ru: Russian

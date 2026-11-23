@@ -10,6 +10,7 @@ use rust_i18n::t;
 use crate::application::languages::{LanguageStatus, LanguagesError, LanguagesService};
 use crate::application::translators::Translators;
 use crate::domain::language::{Language, LanguageCode, LanguageError, LanguagePair};
+use crate::ui::background;
 use crate::ui::interface_language::InterfaceLanguage;
 
 /// Settings window: interface language, translator, language pair and recognition models.
@@ -234,15 +235,14 @@ impl SettingsWindow {
             #[weak]
             status,
             async move {
-                match gio::spawn_blocking(move || languages.download(&language)).await {
-                    Ok(Ok(())) => window.refresh(),
-                    Ok(Err(error)) => {
+                match background::run(move || languages.download(&language)).await {
+                    Ok(()) => window.refresh(),
+                    Err(error) => {
                         let error = Self::describe(&error);
                         status.set_label(&t!("settings.download_failed", language = name, error = error));
                         button.set_label(&t!("settings.download"));
                         button.set_sensitive(true);
                     }
-                    Err(_) => status.set_label(&t!("settings.download_crashed")),
                 }
             }
         ));

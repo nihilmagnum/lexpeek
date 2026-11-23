@@ -3,13 +3,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
-use gtk::{gio, glib};
+use gtk::glib;
 use image::RgbaImage;
 use rust_i18n::t;
 
 use crate::application::reading::TextReading;
 use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
+use crate::ui::background;
 use crate::ui::frozen_screen::Frame;
 use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::reading_card::{Anchor, ReadingCard};
@@ -129,16 +130,15 @@ impl Overlay {
         let reading = Arc::clone(&self.reading);
         let labels_language = InterfaceLanguage::current();
         glib::spawn_future_local(async move {
-            let result = gio::spawn_blocking(move || reading.read_fragment(&fragment, &labels_language)).await;
+            let result = background::run(move || reading.read_fragment(&fragment, &labels_language)).await;
             if overlay.generation.get() != generation {
                 return;
             }
             match result {
-                Ok(Ok(reading)) => overlay.card.show_reading(&reading),
-                Ok(Err(error)) => {
+                Ok(reading) => overlay.card.show_reading(&reading),
+                Err(error) => {
                     overlay.card.show_message(&t!("reading.recognition_failed", error = format!("{error:#}")))
                 }
-                Err(_) => overlay.card.show_message(&t!("reading.recognition_crashed")),
             }
         });
     }

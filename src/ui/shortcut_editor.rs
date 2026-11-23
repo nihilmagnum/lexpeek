@@ -2,10 +2,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
-use gtk::{gdk, gio, glib};
+use gtk::{gdk, glib};
 use rust_i18n::t;
 
 use crate::application::desktop::{GlobalShortcuts, ShortcutSpec};
+use crate::ui::background;
 
 /// Key press in the editor window.
 struct PressedKeys {
@@ -101,13 +102,12 @@ impl ShortcutEditor {
             #[weak]
             status,
             async move {
-                match gio::spawn_blocking(move || shortcuts.assign(&spec, &accelerator)).await {
-                    Ok(Ok(())) => {
+                match background::run(move || shortcuts.assign(&spec, &accelerator)).await {
+                    Ok(()) => {
                         window.close();
                         on_saved();
                     }
-                    Ok(Err(error)) => status.set_label(&t!("shortcuts.save_failed", error = format!("{error:#}"))),
-                    Err(_) => status.set_label(&t!("shortcuts.save_crashed")),
+                    Err(error) => status.set_label(&t!("shortcuts.save_failed", error = format!("{error:#}"))),
                 }
             }
         ));

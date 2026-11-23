@@ -20,18 +20,14 @@ notification:
 reading:
   recognizing: Распознаю…
   recognition_failed: "Не удалось распознать текст: %{error}"
-  recognition_crashed: Распознавание аварийно завершилось
   nothing_recognized: Текст не распознан
   reading_selection_failed: "Не удалось прочитать выделение: %{error}"
-  reading_selection_crashed: Чтение выделения аварийно завершилось
   no_selection: Нет выделенного текста
   translating: Перевожу…
   translation_failed: "Не удалось перевести: %{error}"
-  translation_crashed: Перевод аварийно завершился
   speak_original: Озвучить оригинал
   speak_translation: Озвучить перевод
   speech_failed: "Не удалось озвучить: %{error}"
-  speech_crashed: Озвучивание аварийно завершилось
   definitions: Толкования
   examples: Примеры
   quoted_example: "«%{example}»"
@@ -56,7 +52,6 @@ settings:
   download: Загрузить
   downloading: Загрузка…
   download_failed: "Не удалось загрузить %{language}: %{error}"
-  download_crashed: Загрузка аварийно завершилась
   remove: Удалить
   remove_failed: "Не удалось удалить %{language}: %{error}"
   chosen_for_translation: Язык выбран для перевода
@@ -87,14 +82,12 @@ shortcuts:
   change: Изменить
   clear: Очистить
   clear_failed: "Не удалось очистить: %{error}"
-  clear_crashed: Очистка аварийно завершилась
   editor_title: Горячая клавиша Lexpeek
   press_new: Нажмите новое сочетание клавиш
   cancel_hint: Esc — отмена
   modifier_required: Нужен Ctrl, Alt или Super
   saving: Сохраняю %{shortcut}…
   save_failed: "Не удалось сохранить: %{error}"
-  save_crashed: Сохранение аварийно завершилось
 
 languages:
   ru: Русский
