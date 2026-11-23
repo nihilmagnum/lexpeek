@@ -1,6 +1,7 @@
 pub mod action;
 pub mod app;
 pub mod background;
+pub mod escape;
 pub mod frozen_screen;
 pub mod interface_language;
 pub mod keep_alive;

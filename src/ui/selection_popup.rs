@@ -3,13 +3,14 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gtk::prelude::*;
-use gtk::{gdk, glib};
+use gtk::glib;
 use rust_i18n::t;
 
 use crate::application::selection::SelectionTranslation;
 use crate::application::speech::ReadingSpeech;
 use crate::ui::action::Activation;
 use crate::ui::background;
+use crate::ui::escape;
 use crate::ui::interface_language::InterfaceLanguage;
 use crate::ui::keep_alive;
 use crate::ui::reading_card::ReadingCard;
@@ -73,7 +74,7 @@ impl SelectionPopup {
             popup,
             move |window| popup.focus_changed(window.is_active())
         ));
-        popup.connect_escape();
+        escape::closes_window(window.upcast_ref());
         keep_alive::until_destroyed(&window, Rc::clone(&popup));
         activation.present(&window);
         popup
@@ -85,24 +86,6 @@ impl SelectionPopup {
             Ok(reading) => self.card.show_reading(&reading),
             Err(error) => self.card.show_message(&t!("reading.translation_failed", error = format!("{error:#}"))),
         }
-    }
-
-    fn connect_escape(&self) {
-        let keys = gtk::EventControllerKey::new();
-        keys.connect_key_pressed(glib::clone!(
-            #[weak(rename_to = window)]
-            self.window,
-            #[upgrade_or]
-            glib::Propagation::Proceed,
-            move |_, key, _, _| {
-                if key != gdk::Key::Escape {
-                    return glib::Propagation::Proceed;
-                }
-                window.close();
-                glib::Propagation::Stop
-            }
-        ));
-        self.window.add_controller(keys);
     }
 
     fn focus_changed(&self, active: bool) {

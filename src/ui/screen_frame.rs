@@ -6,6 +6,7 @@ use gtk::{gdk, glib};
 use image::RgbaImage;
 
 use crate::ui::action::Activation;
+use crate::ui::escape;
 use crate::ui::frozen_screen::Frame;
 
 /// Fullscreen window with a frozen frame of the monitor it is open on; Esc closes it.
@@ -48,7 +49,7 @@ impl ScreenFrame {
                 }
             }
         ));
-        frame.close_on_escape();
+        escape::closes_window(window.upcast_ref());
         frame
     }
 
@@ -68,24 +69,6 @@ impl ScreenFrame {
     /// Calls `show` with the screenshot of the monitor once the window is on one.
     pub fn connect_screen(&self, show: impl Fn(&RgbaImage) + 'static) {
         self.on_screen.replace(Some(Box::new(show)));
-    }
-
-    fn close_on_escape(&self) {
-        let keys = gtk::EventControllerKey::new();
-        keys.connect_key_pressed(glib::clone!(
-            #[weak(rename_to = window)]
-            self.window,
-            #[upgrade_or]
-            glib::Propagation::Proceed,
-            move |_, key, _, _| {
-                if key != gdk::Key::Escape {
-                    return glib::Propagation::Proceed;
-                }
-                window.close();
-                glib::Propagation::Stop
-            }
-        ));
-        self.window.add_controller(keys);
     }
 
     /// The portal captures all monitors at once, while the window occupies one of them.
