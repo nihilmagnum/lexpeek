@@ -64,17 +64,14 @@ mod tests {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use image::RgbaImage;
-
     use super::*;
-    use crate::application::languages::LanguageSetupRepository;
-    use crate::application::reading::TextRecognizer;
+    use crate::application::fakes::{DefaultSetups, NoChoice, NoText};
     use crate::application::translators::{
         BatchTranslationRequest, DetectedLanguage, Translated, TranslatedText, TranslationRequest, Translator,
-        TranslatorSettings, Translators,
+        Translators,
     };
     use crate::domain::dictionary::DictionaryArticle;
-    use crate::domain::language::{Language, LanguageCode, LanguageSetup};
+    use crate::domain::language::LanguageCode;
 
     struct FixedSelection(Option<&'static str>);
 
@@ -125,38 +122,6 @@ mod tests {
         }
     }
 
-    struct DefaultSetups;
-
-    impl LanguageSetupRepository for DefaultSetups {
-        fn load(&self) -> Result<LanguageSetup> {
-            Ok(LanguageSetup::default())
-        }
-
-        fn save(&self, _setup: &LanguageSetup) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    struct NoRecognizer;
-
-    impl TextRecognizer for NoRecognizer {
-        fn recognize(&self, _fragment: &RgbaImage, _languages: &[Language]) -> Result<String> {
-            Ok(String::new())
-        }
-    }
-
-    struct NoChoice;
-
-    impl TranslatorSettings for NoChoice {
-        fn translator(&self) -> Result<Option<String>> {
-            Ok(None)
-        }
-
-        fn set_translator(&self, _id: &str) -> Result<()> {
-            Ok(())
-        }
-    }
-
     struct Fixture {
         translation: SelectionTranslation,
         clipboard: Arc<InMemoryClipboard>,
@@ -165,7 +130,7 @@ mod tests {
 
     fn fixture(selected: Option<&'static str>) -> Fixture {
         let translators = Arc::new(Translators::new(vec![Arc::new(MarkingTranslator)], Arc::new(NoChoice)));
-        let reading = Arc::new(TextReading::new(Arc::new(DefaultSetups), Arc::new(NoRecognizer), translators));
+        let reading = Arc::new(TextReading::new(Arc::new(DefaultSetups), Arc::new(NoText), translators));
         let clipboard = Arc::new(InMemoryClipboard::default());
         let keystroke = Arc::new(CountingKeystroke::default());
         let selection = Arc::new(FixedSelection(selected));

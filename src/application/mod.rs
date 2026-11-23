@@ -1,4 +1,6 @@
 pub mod desktop;
+#[cfg(test)]
+mod fakes;
 pub mod interface;
 pub mod languages;
 pub mod reading;

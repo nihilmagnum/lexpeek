@@ -149,28 +149,8 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
-    use crate::application::translators::{BatchTranslationRequest, TranslatedText, TranslatorSettings};
-    use crate::domain::language::LanguageSetup;
-
-    struct DefaultSetups;
-
-    impl LanguageSetupRepository for DefaultSetups {
-        fn load(&self) -> Result<LanguageSetup> {
-            Ok(LanguageSetup::default())
-        }
-
-        fn save(&self, _setup: &LanguageSetup) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    struct NoText;
-
-    impl TextRecognizer for NoText {
-        fn recognize(&self, _fragment: &RgbaImage, _languages: &[Language]) -> Result<String> {
-            Ok(String::new())
-        }
-    }
+    use crate::application::fakes::{DefaultSetups, NoChoice, NoText};
+    use crate::application::translators::{BatchTranslationRequest, TranslatedText};
 
     /// Translator that recognizes `language` only with the `recognized_with` hint and otherwise
     /// takes it for Bulgarian. The translation is the code of the target language.
@@ -215,18 +195,6 @@ mod tests {
     fn reading(translator: Arc<HintSensitiveTranslator>) -> TextReading {
         let translators = Translators::new(vec![translator], Arc::new(NoChoice));
         TextReading::new(Arc::new(DefaultSetups), Arc::new(NoText), Arc::new(translators))
-    }
-
-    struct NoChoice;
-
-    impl TranslatorSettings for NoChoice {
-        fn translator(&self) -> Result<Option<String>> {
-            Ok(None)
-        }
-
-        fn set_translator(&self, _id: &str) -> Result<()> {
-            Ok(())
-        }
     }
 
     #[test]

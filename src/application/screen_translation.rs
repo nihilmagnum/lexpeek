@@ -62,23 +62,10 @@ impl ScreenTranslation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::translators::{
-        Translated, TranslatedText, TranslationRequest, Translator, TranslatorSettings,
-    };
-    use crate::domain::language::{LanguageCode, LanguageSetup};
+    use crate::application::fakes::{DefaultSetups, NoChoice};
+    use crate::application::translators::{Translated, TranslatedText, TranslationRequest, Translator};
+    use crate::domain::language::LanguageCode;
     use crate::domain::text::ScreenArea;
-
-    struct DefaultSetups;
-
-    impl LanguageSetupRepository for DefaultSetups {
-        fn load(&self) -> Result<LanguageSetup> {
-            Ok(LanguageSetup::default())
-        }
-
-        fn save(&self, _setup: &LanguageSetup) -> Result<()> {
-            Ok(())
-        }
-    }
 
     struct Paragraphs(Vec<&'static str>);
 
@@ -116,18 +103,6 @@ mod tests {
                     Ok(TranslatedText { text: translated.to_owned(), source: Some(source) })
                 })
                 .collect()
-        }
-    }
-
-    struct NoChoice;
-
-    impl TranslatorSettings for NoChoice {
-        fn translator(&self) -> Result<Option<String>> {
-            Ok(None)
-        }
-
-        fn set_translator(&self, _id: &str) -> Result<()> {
-            Ok(())
         }
     }
 
