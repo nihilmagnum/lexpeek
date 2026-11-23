@@ -135,7 +135,8 @@ impl Overlay {
                 return;
             }
             match result {
-                Ok(reading) => overlay.card.show_reading(&reading),
+                Ok(Some(reading)) => overlay.card.show_reading(&reading),
+                Ok(None) => overlay.card.show_message(&t!("reading.nothing_recognized")),
                 Err(error) => {
                     overlay.card.show_message(&t!("reading.recognition_failed", error = format!("{error:#}")))
                 }

@@ -82,9 +82,6 @@ impl ReadingCard {
     }
 
     pub fn show_reading(&self, reading: &Reading) {
-        if reading.text.is_empty() {
-            return self.show_message(&t!("reading.nothing_recognized"));
-        }
         let content = gtk::Box::new(gtk::Orientation::Vertical, 10);
         let article = reading.translation.as_ref().ok().map(|translation| &translation.article);
         let transcription = article.and_then(|article| article.transcription.as_deref());

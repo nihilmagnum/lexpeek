@@ -67,11 +67,14 @@ impl TextReading {
         Self { language_setups, recognizer, translators }
     }
 
-    /// Recognizes text in a fragment of a screenshot and translates it.
-    pub fn read_fragment(&self, fragment: &RgbaImage, labels_language: &LanguageCode) -> Result<Reading> {
+    /// Recognizes text in a fragment of a screenshot and translates it; `None` if the fragment has no text.
+    pub fn read_fragment(&self, fragment: &RgbaImage, labels_language: &LanguageCode) -> Result<Option<Reading>> {
         let pair = self.language_setups.load()?.pair().clone();
         let text = self.recognizer.recognize(fragment, &pair.languages())?;
-        Ok(self.read(text, &pair, labels_language))
+        if text.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(self.read(text, &pair, labels_language)))
     }
 
     pub fn read_text(&self, text: &str, labels_language: &LanguageCode) -> Result<Reading> {
@@ -86,12 +89,6 @@ impl TextReading {
     }
 
     fn read(&self, text: String, pair: &LanguagePair, labels_language: &LanguageCode) -> Reading {
-        if text.is_empty() {
-            let language = pair.native().clone();
-            let article = DictionaryArticle::default();
-            let translation = Translation { text: String::new(), language, source: None, article };
-            return Reading { text, translation: Ok(translation) };
-        }
         let translation = self.translate_in_pair(&SourceText::from_recognized(&text), pair, Some(labels_language));
         Reading { text, translation }
     }
@@ -251,6 +248,16 @@ mod tests {
         let requests = translator.requests.lock().unwrap();
         let expected = ["auto->ru likely ru labels en", "auto->ru likely en labels none", "en->ru likely ru labels en"];
         assert_eq!(*requests, expected);
+    }
+
+    #[test]
+    fn translates_nothing_when_fragment_has_no_text() {
+        let translator = HintSensitiveTranslator::new("en", "en");
+
+        let labels_language = LanguageCode::parse("en").unwrap();
+        let reading = reading(translator.clone()).read_fragment(&RgbaImage::new(1, 1), &labels_language).unwrap();
+        assert!(reading.is_none());
+        assert!(translator.requests.lock().unwrap().is_empty());
     }
 
     #[test]
