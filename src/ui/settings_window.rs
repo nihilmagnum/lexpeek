@@ -153,7 +153,7 @@ impl SettingsWindow {
         Self::row(&t!("settings.translator"), &choice)
     }
 
-    fn choose(self: &Rc<Self>, pair: &LanguagePair) -> anyhow::Result<()> {
+    fn choose(self: &Rc<Self>, pair: &LanguagePair) -> Result<(), LanguagesError> {
         self.languages.choose(pair.native().code(), pair.foreign().code())?;
         self.refresh_later();
         Ok(())
@@ -161,7 +161,11 @@ impl SettingsWindow {
 
     /// Saves every new selection of the list; one that could not be saved is taken back, so the list
     /// shows what is saved.
-    fn save_selection(choice: &gtk::DropDown, status: &gtk::Label, save: impl Fn(u32) -> anyhow::Result<()> + 'static) {
+    fn save_selection<E: Explained>(
+        choice: &gtk::DropDown,
+        status: &gtk::Label,
+        save: impl Fn(u32) -> Result<(), E> + 'static,
+    ) {
         let saved = Cell::new(choice.selected());
         choice.connect_selected_notify(glib::clone!(
             #[weak]
@@ -174,7 +178,7 @@ impl SettingsWindow {
                 match save(selected) {
                     Ok(()) => saved.set(selected),
                     Err(error) => {
-                        status.set_label(&t!("settings.save_failed", error = Self::describe(&error)));
+                        status.set_label(&t!("settings.save_failed", error = error.explanation()));
                         choice.set_selected(saved.get());
                     }
                 }
@@ -236,7 +240,7 @@ impl SettingsWindow {
                 match background::run(move || languages.download(&language)).await {
                     Ok(()) => window.refresh(),
                     Err(error) => {
-                        let error = Self::describe(&error);
+                        let error = error.explanation();
                         status.set_label(&t!("settings.download_failed", language = name, error = error));
                         button.set_label(&t!("settings.download"));
                         button.set_sensitive(true);
@@ -251,7 +255,7 @@ impl SettingsWindow {
             Ok(()) => self.refresh(),
             Err(error) => {
                 let name = Self::language_name(language);
-                status.set_label(&t!("settings.remove_failed", language = name, error = Self::describe(&error)))
+                status.set_label(&t!("settings.remove_failed", language = name, error = error.explanation()))
             }
         }
     }
@@ -352,7 +356,7 @@ impl SettingsWindow {
                                 window.refresh();
                             }
                             Err(message) => {
-                                error.set_label(&t!("settings.add_failed", error = Self::describe(&message)))
+                                error.set_label(&t!("settings.add_failed", error = message.explanation()))
                             }
                         }
                     }
@@ -372,27 +376,6 @@ impl SettingsWindow {
     }
 
     /// User-friendly explanation of an error; unexpected errors are shown as is.
-    fn describe(error: &anyhow::Error) -> String {
-        if let Some(error) = error.downcast_ref::<LanguageError>() {
-            let description = match error {
-                LanguageError::InvalidCode(_) => t!("errors.invalid_code"),
-                LanguageError::EmptyName => t!("errors.empty_name"),
-                LanguageError::AlreadyInCatalog(code) => t!("errors.already_in_catalog", code = code),
-                LanguageError::Unknown(code) => t!("errors.unknown_language", code = code),
-                LanguageError::SameLanguagesInPair => t!("errors.same_languages"),
-                LanguageError::ChosenForTranslation(_) => t!("errors.chosen_for_translation"),
-            };
-            return description.into_owned();
-        }
-        if let Some(error) = error.downcast_ref::<LanguagesError>() {
-            let description = match error {
-                LanguagesError::ModelMissing(code) => t!("errors.model_missing", code = code),
-                LanguagesError::NotDownloadable(_) => t!("errors.not_downloadable"),
-            };
-            return description.into_owned();
-        }
-        format!("{error:#}")
-    }
 
     /// Built-in languages are named in the interface language, added ones the way the user named them.
     fn language_name(language: &Language) -> String {
@@ -419,5 +402,35 @@ impl SettingsWindow {
 
     fn hint(text: &str) -> gtk::Label {
         gtk::Label::builder().label(text).xalign(0.0).wrap(true).css_classes(["dim-label"]).build()
+    }
+}
+
+/// Failure told to the user in the interface language.
+trait Explained {
+    fn explanation(&self) -> String;
+}
+
+impl Explained for anyhow::Error {
+    fn explanation(&self) -> String {
+        format!("{self:#}")
+    }
+}
+
+impl Explained for LanguagesError {
+    fn explanation(&self) -> String {
+        let explanation = match self {
+            LanguagesError::Language(LanguageError::InvalidCode(_)) => t!("errors.invalid_code"),
+            LanguagesError::Language(LanguageError::EmptyName) => t!("errors.empty_name"),
+            LanguagesError::Language(LanguageError::AlreadyInCatalog(code)) => {
+                t!("errors.already_in_catalog", code = code)
+            }
+            LanguagesError::Language(LanguageError::Unknown(code)) => t!("errors.unknown_language", code = code),
+            LanguagesError::Language(LanguageError::SameLanguagesInPair) => t!("errors.same_languages"),
+            LanguagesError::Language(LanguageError::ChosenForTranslation(_)) => t!("errors.chosen_for_translation"),
+            LanguagesError::ModelMissing(code) => t!("errors.model_missing", code = code),
+            LanguagesError::NotDownloadable(_) => t!("errors.not_downloadable"),
+            LanguagesError::Failed(error) => return error.explanation(),
+        };
+        explanation.into_owned()
     }
 }

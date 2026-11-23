@@ -6,12 +6,17 @@ use thiserror::Error;
 
 use crate::domain::language::{CustomLanguage, Language, LanguageCode, LanguageError, LanguagePair, LanguageSetup};
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error)]
 pub enum LanguagesError {
+    #[error(transparent)]
+    Language(#[from] LanguageError),
     #[error("OCR model for {0} is not installed")]
     ModelMissing(LanguageCode),
     #[error("language {0} has no model to download")]
     NotDownloadable(LanguageCode),
+    /// Settings or models could not be read, written or downloaded.
+    #[error(transparent)]
+    Failed(#[from] anyhow::Error),
 }
 
 pub trait LanguageSetupRepository: Send + Sync {
@@ -65,47 +70,47 @@ impl LanguagesService {
     }
 
     /// Only languages that can be recognized are suitable for the pair.
-    pub fn choose(&self, native: &LanguageCode, foreign: &LanguageCode) -> Result<()> {
+    pub fn choose(&self, native: &LanguageCode, foreign: &LanguageCode) -> Result<(), LanguagesError> {
         let mut setup = self.language_setups.load()?;
         setup.choose(native, foreign)?;
         for language in setup.pair().languages() {
             if !self.models.is_installed(&language) {
-                return Err(LanguagesError::ModelMissing(language.code().clone()).into());
+                return Err(LanguagesError::ModelMissing(language.code().clone()));
             }
         }
-        self.language_setups.save(&setup)
+        Ok(self.language_setups.save(&setup)?)
     }
 
-    pub fn download(&self, language: &Language) -> Result<()> {
+    pub fn download(&self, language: &Language) -> Result<(), LanguagesError> {
         if !language.is_built_in() {
-            return Err(LanguagesError::NotDownloadable(language.code().clone()).into());
+            return Err(LanguagesError::NotDownloadable(language.code().clone()));
         }
-        self.models.download(language)
+        Ok(self.models.download(language)?)
     }
 
     /// A built-in language loses only its model, a user-added one leaves the catalog.
-    pub fn remove(&self, language: &Language) -> Result<()> {
+    pub fn remove(&self, language: &Language) -> Result<(), LanguagesError> {
         let mut setup = self.language_setups.load()?;
         setup.remove(language)?;
         if self.models.is_installed(language) {
             self.models.remove(language)?;
         }
-        self.language_setups.save(&setup)
+        Ok(self.language_setups.save(&setup)?)
     }
 
     /// A model for the code of a built-in language becomes its model, otherwise a new language joins the catalog.
-    pub fn add_from_file(&self, file: &Path, code: &LanguageCode, name: &str) -> Result<()> {
+    pub fn add_from_file(&self, file: &Path, code: &LanguageCode, name: &str) -> Result<(), LanguagesError> {
         let mut setup = self.language_setups.load()?;
         if let Some(known) = setup.catalog().by_code(code) {
             if !known.is_built_in() {
                 return Err(LanguageError::AlreadyInCatalog(code.clone()).into());
             }
-            return self.models.install_from_file(&known, file);
+            return Ok(self.models.install_from_file(&known, file)?);
         }
         let language = CustomLanguage::new(code.clone(), name)?;
         setup.add(language.clone())?;
         self.models.install_from_file(&Language::Custom(language), file)?;
-        self.language_setups.save(&setup)
+        Ok(self.language_setups.save(&setup)?)
     }
 
     /// Downloads missing models of the pair, for example on first launch.
@@ -180,7 +185,7 @@ mod tests {
         let georgian = languages.overview().unwrap().pair.foreign().clone();
 
         let error = languages.remove(&georgian).unwrap_err();
-        assert_eq!(error.downcast_ref(), Some(&LanguageError::ChosenForTranslation(code("ka"))));
+        assert!(matches!(error, LanguagesError::Language(LanguageError::ChosenForTranslation(c)) if c == code("ka")));
         languages.choose(&code("ru"), &code("en")).unwrap();
         languages.remove(&georgian).unwrap();
         assert!(languages.overview().unwrap().languages.iter().all(|status| status.language != georgian));
@@ -191,6 +196,6 @@ mod tests {
         let languages = service();
         languages.download_pair_models().unwrap();
         let error = languages.choose(&code("ru"), &code("de")).unwrap_err();
-        assert_eq!(error.downcast_ref(), Some(&LanguagesError::ModelMissing(code("de"))));
+        assert!(matches!(error, LanguagesError::ModelMissing(c) if c == code("de")));
     }
 }
