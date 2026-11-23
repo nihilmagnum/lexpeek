@@ -71,16 +71,31 @@ impl Action {
     }
 
     pub fn shortcut(self) -> Option<ShortcutSpec> {
-        // The desktop keeps assigned shortcuts by id, so a changed id loses the assignment.
-        let (id, preferred_trigger) = match self {
-            Action::TranslateArea => ("capture", "CTRL+ALT+R"),
-            Action::TranslateScreen => ("translate-screen", "CTRL+ALT+S"),
-            Action::TranslateSelection => ("translate-selection", "CTRL+ALT+W"),
-            Action::CopyTranslation => ("copy-translation", "CTRL+ALT+C"),
-            Action::ReplaceSelection => ("replace-selection", "CTRL+ALT+V"),
-            Action::Settings | Action::Shortcuts | Action::Quit => return None,
-        };
+        let (id, preferred_trigger) = (self.shortcut_id()?, self.preferred_trigger()?);
         Some(ShortcutSpec { id, description: self.title(), preferred_trigger })
+    }
+
+    /// The desktop keeps assigned shortcuts by id, so a changed id loses the assignment.
+    fn shortcut_id(self) -> Option<&'static str> {
+        match self {
+            Action::TranslateArea => Some("capture"),
+            Action::TranslateScreen => Some("translate-screen"),
+            Action::TranslateSelection => Some("translate-selection"),
+            Action::CopyTranslation => Some("copy-translation"),
+            Action::ReplaceSelection => Some("replace-selection"),
+            Action::Settings | Action::Shortcuts | Action::Quit => None,
+        }
+    }
+
+    fn preferred_trigger(self) -> Option<&'static str> {
+        match self {
+            Action::TranslateArea => Some("CTRL+ALT+R"),
+            Action::TranslateScreen => Some("CTRL+ALT+S"),
+            Action::TranslateSelection => Some("CTRL+ALT+W"),
+            Action::CopyTranslation => Some("CTRL+ALT+C"),
+            Action::ReplaceSelection => Some("CTRL+ALT+V"),
+            Action::Settings | Action::Shortcuts | Action::Quit => None,
+        }
     }
 
     pub fn shortcut_specs() -> Vec<ShortcutSpec> {
@@ -88,6 +103,6 @@ impl Action {
     }
 
     pub fn by_shortcut_id(id: &str) -> Option<Self> {
-        Self::WITH_SHORTCUT.into_iter().find(|action| action.shortcut().is_some_and(|spec| spec.id == id))
+        Self::WITH_SHORTCUT.into_iter().find(|action| action.shortcut_id() == Some(id))
     }
 }
